@@ -12,7 +12,7 @@ type cookieSetter struct {
 	w http.ResponseWriter
 }
 
-func (h cookieSetter) Set(c *http.Cookie){
+func (h cookieSetter) Set(c *http.Cookie) {
 	http.SetCookie(h.w, c)
 }
 
