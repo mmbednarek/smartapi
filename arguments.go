@@ -21,7 +21,7 @@ func (a headerArgument) getValue(w http.ResponseWriter, r *http.Request) (reflec
 
 func (a headerArgument) checkArg(arg reflect.Type) error {
 	if arg.Kind() != reflect.String {
-		return errors.New("expected a string")
+		return errors.New("expected a string type")
 	}
 	return nil
 }
@@ -105,7 +105,7 @@ func (a returnStatusArgument) getValue(w http.ResponseWriter, r *http.Request) (
 	return reflect.Value{}, nil
 }
 
-func ReturnStatus(status int) Argument {
+func ResponseStatus(status int) Argument {
 	return returnStatusArgument{status: status}
 }
 
@@ -115,7 +115,7 @@ type queryParamArgument struct {
 
 func (q queryParamArgument) checkArg(arg reflect.Type) error {
 	if arg.Kind() != reflect.String {
-		return errors.New("expected a string")
+		return errors.New("expected a string type")
 	}
 	return nil
 }
@@ -132,39 +132,14 @@ type cookieArgument struct {
 	name string
 }
 
-var cookieType = reflect.TypeOf((*http.Cookie)(nil))
-
 func (c cookieArgument) checkArg(arg reflect.Type) error {
-	if arg != cookieType {
-		return errors.New("expected a cookie type")
+	if arg.Kind() != reflect.String {
+		return errors.New("expected a string type")
 	}
 	return nil
 }
 
 func (c cookieArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
-	cookie, err := r.Cookie(c.name)
-	if err != nil {
-		return reflect.Value{}, err
-	}
-	return reflect.ValueOf(cookie), nil
-}
-
-func Cookie(name string) Argument {
-	return cookieArgument{name: name}
-}
-
-type cookieValueArgument struct {
-	name string
-}
-
-func (c cookieValueArgument) checkArg(arg reflect.Type) error {
-	if arg.Kind() != reflect.String {
-		return errors.New("expected a string")
-	}
-	return nil
-}
-
-func (c cookieValueArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
 	cookie, err := r.Cookie(c.name)
 	if err != nil {
 		msg := fmt.Sprintf("missing cookie %s", c.name)
@@ -173,8 +148,8 @@ func (c cookieValueArgument) getValue(w http.ResponseWriter, r *http.Request) (r
 	return reflect.ValueOf(cookie.Value), nil
 }
 
-func CookieValue(name string) Argument {
-	return cookieValueArgument{name: name}
+func Cookie(name string) Argument {
+	return cookieArgument{name: name}
 }
 
 type headerSetterArgument struct{}

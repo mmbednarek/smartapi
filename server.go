@@ -16,6 +16,7 @@ type Endpoint struct {
 	handler      endpointHandler
 	returnStatus int
 	query        bool
+	cookies      bool
 	middlewares  []func(http.Handler) http.Handler
 }
 
@@ -154,7 +155,7 @@ func (s *Server) Delete(pattern string, handler interface{}, args ...Argument) {
 	s.addEndpoint(DELETE, pattern, handler, args)
 }
 
-func (s *Server) Start(address string) error {
+func (s *Server) Handler() (http.Handler, error) {
 	r := chi.NewRouter()
 
 	if len(s.errors) != 0 {
@@ -162,7 +163,7 @@ func (s *Server) Start(address string) error {
 		for _, e := range s.errors[1:] {
 			errMsg += ", " + e.Error()
 		}
-		return errors.New(errMsg)
+		return nil, errors.New(errMsg)
 	}
 
 	var router chi.Router
@@ -196,7 +197,15 @@ func (s *Server) Start(address string) error {
 		}
 	}
 
-	if err := http.ListenAndServe(address, r); err != nil {
+	return router, nil
+}
+
+func (s *Server) Start(address string) error {
+	handler, err := s.Handler()
+	if err != nil {
+		return err
+	}
+	if err := http.ListenAndServe(address, handler); err != nil {
 		return fmt.Errorf("ListenAndServe: %w", err)
 	}
 	return nil

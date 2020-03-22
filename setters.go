@@ -5,15 +5,20 @@ import (
 )
 
 type Cookies interface {
-	Set(c *http.Cookie)
+	Add(c *http.Cookie)
 }
 
 type cookieSetter struct {
 	w http.ResponseWriter
 }
 
-func (h cookieSetter) Set(c *http.Cookie) {
-	http.SetCookie(h.w, c)
+func (h cookieSetter) Add(c *http.Cookie) {
+	cookies := h.w.Header().Get("Set-Cookie")
+	if len(cookies) == 0 {
+		h.w.Header().Set("Set-Cookie", c.String())
+		return
+	}
+	h.w.Header().Set("Set-Cookie", cookies + "; " + c.String())
 }
 
 type Headers interface {

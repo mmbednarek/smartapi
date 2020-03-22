@@ -30,6 +30,7 @@ type Logger interface {
 type API interface {
 	Start(string) error
 	Init()
+	Handler() (http.Handler, error)
 }
 
 type method int

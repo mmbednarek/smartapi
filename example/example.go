@@ -40,8 +40,6 @@ type Order struct {
 }
 
 func (a *API) Init() {
-	a.With(middleware.DefaultLogger, middleware.SetHeader("Api-Version", "1.2.3"))
-
 	a.Get("/user", a.GetUser,
 		smartapi.Context(),
 		smartapi.QueryParam("user"),
@@ -51,20 +49,20 @@ func (a *API) Init() {
 		smartapi.URLParam("user"),
 		smartapi.JSONBody(UserData{}),
 
-		smartapi.ReturnStatus(http.StatusCreated),
+		smartapi.ResponseStatus(http.StatusCreated),
 	)
 
 	a.Get("/test", func(name string, cookies smartapi.Cookies, headers smartapi.Headers) error {
-		cookies.Set(&http.Cookie{
+		cookies.Add(&http.Cookie{
 			Name:  "Session-Token",
 			Value: "token",
 		})
-		headers.Set("Api-Version", "1.3")
 		return nil
 	},
-		smartapi.CookieValue("Session"),
+		smartapi.Cookie("Session"),
 		smartapi.ResponseCookies(),
 		smartapi.ResponseHeaders(),
+		smartapi.Middleware(middleware.DefaultLogger),
 	)
 
 	a.Get("/order/{id}", func(orderID string) (*Order, error) {

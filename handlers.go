@@ -11,7 +11,7 @@ import (
 func getCallAttributes(w http.ResponseWriter, r *http.Request, endpoint Endpoint) ([]reflect.Value, error) {
 	if endpoint.query {
 		if err := r.ParseForm(); err != nil {
-			return nil, err
+			return nil, WrapError(http.StatusBadRequest, err, "could not parse form")
 		}
 	}
 

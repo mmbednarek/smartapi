@@ -1,0 +1,9 @@
+language: go
+
+go:
+  - 1.14.x
+
+script:
+  - go get -d -t ./...
+  - go vet ./...
+  - go test ./...

@@ -8,6 +8,9 @@
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
+  <component name="CoverageViewManager">
+    <option name="myElementSize" value="148" />
+  </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
       <list>
@@ -44,7 +47,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="Go Build.go build github.com/mmbednarek/smartapi/example/cmd/example">
+  <component name="RunManager" selected="Go Test.go test github.com/mmbednarek/smartapi">
     <configuration default="true" type="GoApplicationRunConfiguration" factoryName="Go Application">
       <module name="smartapi" />
       <working_directory value="$PROJECT_DIR$/" />
@@ -52,23 +55,6 @@
       <kind value="FILE" />
       <filePath value="$PROJECT_DIR$/" />
       <package value="betterapi" />
-      <directory value="$PROJECT_DIR$/" />
-      <method v="2" />
-    </configuration>
-    <configuration name="go build betterapi/cmd/betterapi" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
-      <module name="smartapi" />
-      <working_directory value="$PROJECT_DIR$/" />
-      <kind value="PACKAGE" />
-      <filePath value="$PROJECT_DIR$/cmd/betterapi/main.go" />
-      <package value="betterapi/cmd/betterapi" />
-      <method v="2" />
-    </configuration>
-    <configuration name="go build github.com/mmbednarek/smartapi/example2" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
-      <module name="smartapi" />
-      <working_directory value="$PROJECT_DIR$/" />
-      <kind value="PACKAGE" />
-      <filePath value="$PROJECT_DIR$/../github.com/mmbednarek/smartapi/example2/main.go" />
-      <package value="github.com/mmbednarek/smartapi/example2" />
       <directory value="$PROJECT_DIR$/" />
       <method v="2" />
     </configuration>
@@ -81,13 +67,37 @@
       <directory value="$PROJECT_DIR$/" />
       <method v="2" />
     </configuration>
-    <configuration name="Test_checkHandler in betterapi/server" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+    <configuration name="TestAttributes in github.com/mmbednarek/smartapi" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="smartapi" />
-      <working_directory value="$PROJECT_DIR$/server" />
+      <working_directory value="$PROJECT_DIR$/../github.com/mmbednarek/smartapi" />
       <framework value="gotest" />
       <kind value="PACKAGE" />
-      <package value="betterapi/server" />
-      <pattern value="^Test_checkHandler$" />
+      <package value="github.com/mmbednarek/smartapi" />
+      <directory value="$PROJECT_DIR$/" />
+      <filePath value="$PROJECT_DIR$/" />
+      <pattern value="^TestAttributes$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="TestError in github.com/mmbednarek/smartapi" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="smartapi" />
+      <working_directory value="$PROJECT_DIR$/../github.com/mmbednarek/smartapi" />
+      <framework value="gotest" />
+      <kind value="PACKAGE" />
+      <package value="github.com/mmbednarek/smartapi" />
+      <directory value="$PROJECT_DIR$/" />
+      <filePath value="$PROJECT_DIR$/" />
+      <pattern value="^TestError$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="TestHandlersErrors in github.com/mmbednarek/smartapi" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="smartapi" />
+      <working_directory value="$PROJECT_DIR$/../github.com/mmbednarek/smartapi" />
+      <framework value="gotest" />
+      <kind value="PACKAGE" />
+      <package value="github.com/mmbednarek/smartapi" />
+      <directory value="$PROJECT_DIR$/" />
+      <filePath value="$PROJECT_DIR$/" />
+      <pattern value="^TestHandlersErrors$" />
       <method v="2" />
     </configuration>
     <configuration default="true" type="GoTestRunConfiguration" factoryName="Go Test">
@@ -101,16 +111,31 @@
       <filePath value="$PROJECT_DIR$/" />
       <method v="2" />
     </configuration>
+    <configuration name="go test github.com/mmbednarek/smartapi" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="smartapi" />
+      <working_directory value="$PROJECT_DIR$/../github.com/mmbednarek/smartapi" />
+      <framework value="gotest" />
+      <kind value="PACKAGE" />
+      <package value="github.com/mmbednarek/smartapi" />
+      <directory value="$PROJECT_DIR$/" />
+      <filePath value="$PROJECT_DIR$/" />
+      <method v="2" />
+    </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Go Test.go test github.com/mmbednarek/smartapi" />
+        <item itemvalue="Go Test.TestAttributes in github.com/mmbednarek/smartapi" />
         <item itemvalue="Go Build.go build github.com/mmbednarek/smartapi/example/cmd/example" />
-        <item itemvalue="Go Build.go build github.com/mmbednarek/smartapi/example2" />
-        <item itemvalue="Go Build.go build betterapi/cmd/betterapi" />
-        <item itemvalue="Go Test.Test_checkHandler in betterapi/server" />
+        <item itemvalue="Go Test.TestHandlersErrors in github.com/mmbednarek/smartapi" />
+        <item itemvalue="Go Test.TestError in github.com/mmbednarek/smartapi" />
       </list>
     </recent_temporary>
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="1" />
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/betterapi$go_test_github_com_mmbednarek_smartapi.out" NAME="go test github.com/mmbednarek/smartapi Coverage Results" MODIFIED="1584914082120" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="GoCoverage" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" />
+    <SUITE FILE_PATH="coverage/betterapi$TestAttributes_in_github_com_mmbednarek_smartapi.out" NAME="TestAttributes in github.com/mmbednarek/smartapi Coverage Results" MODIFIED="1584914068187" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="GoCoverage" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" />
   </component>
 </project>

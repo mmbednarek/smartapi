@@ -1,6 +1,8 @@
 # SmartAPI REST Library
 
-SmartAPI allows you to quickly implement firm REST APIs.
+[![Travis Widget]][Travis]
+
+SmartAPI allows you to quickly implement solid REST APIs in Golang.
 The idea behind the project is to replace handler functions with ordinary looking functions.
 This allows service-level methods to be used as handlers.
 
@@ -235,25 +237,13 @@ a.Get("/example", func(test string) (string, error) {
 
 ### Cookie
 
-Reads a cookie from the request and passes it into a function as *http.Cookie.
-
-```go
-a.Get("/example", func(c *http.Cookie) (string, error) {
-    return fmt.Sprintf("cookie: %v", c)
-},
-    smartapi.Cookie("cookie"),
-)
-```
-
-### Cookie value
-
-Reads a cookie from the request and passes the value it into a function as a string.
+Reads a cookie from the request and passes the value into a function as a string.
 
 ```go
 a.Get("/example", func(c string) (string, error) {
     return fmt.Sprintf("cookie: %s", c)
 },
-    smartapi.CookieValue("cookie"),
+    smartapi.Cookie("cookie"),
 )
 ```
 
@@ -288,7 +278,7 @@ Response cookies allows an endpoint to easily add Set-Cookie header.
 
 ```go
 a.Get("/example", func(cookies smartapi.Cookies) error {
-    cookies.Set("Session", "123456")
+    cookies.Add(&http.Cookie{Name: "Foo", Value: "Bar"})
     return nil
 },
     smartapi.ResponseCookies(),
