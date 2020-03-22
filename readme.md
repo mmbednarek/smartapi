@@ -1,6 +1,6 @@
 # SmartAPI REST Library
 
-[![Travis Widget]][Travis]
+[![Build Status](https://travis-ci.org/mmbednarek/smartapi.svg?branch=master)](https://travis-ci.org/mmbednarek/smartapi)
 
 SmartAPI allows you to quickly implement solid REST APIs in Golang.
 The idea behind the project is to replace handler functions with ordinary looking functions.
