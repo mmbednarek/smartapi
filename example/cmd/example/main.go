@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	api := example.NewAPI(storage.Storage{})
+	api := example.NewAPI(storage.NewStorage())
 	if err := smartapi.StartAPI(api, ":4000"); err != nil {
 		log.Fatal(err)
 	}

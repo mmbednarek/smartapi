@@ -23,6 +23,31 @@ func TestAttributes(t *testing.T) {
 
 	tests := []test{
 		{
+			name: "JSONBody",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", bytes.NewReader([]byte(`{"name": "John", "surname": "Smith"}`)))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *Server) {
+				type foo struct {
+					Name    string `json:"name"`
+					Surname string `json:"surname"`
+				}
+				api.Post("/test", func(f *foo) error {
+					require.Equal(t, f.Name, "John")
+					require.Equal(t, f.Surname, "Smith")
+					return nil
+				},
+					JSONBody(foo{}),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
 			name: "Header",
 			request: func() *http.Request {
 				request, err := http.NewRequest("POST", "/test", nil)

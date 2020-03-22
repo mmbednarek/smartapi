@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/chi"
 )
 
-type Endpoint struct {
+type endpoint struct {
 	name         string
 	method       method
 	arguments    []Argument
@@ -20,13 +20,15 @@ type Endpoint struct {
 	middlewares  []func(http.Handler) http.Handler
 }
 
+// Server handles http endpoints
 type Server struct {
 	errors      []error
-	endpoints   []Endpoint
+	endpoints   []endpoint
 	logger      Logger
 	middlewares []func(http.Handler) http.Handler
 }
 
+// StartAPI starts a user defined API
 func StartAPI(a API, address string) error {
 	a.Init()
 	if err := a.Start(address); err != nil {
@@ -35,6 +37,7 @@ func StartAPI(a API, address string) error {
 	return nil
 }
 
+// NewServer constructs a server
 func NewServer(logger Logger) *Server {
 	return &Server{logger: logger}
 }
@@ -120,7 +123,7 @@ func (s *Server) addEndpoint(method method, name string, handler interface{}, ar
 		s.errors = append(s.errors, fmt.Errorf("endpoint %s: %w", name, err))
 		return
 	}
-	s.endpoints = append(s.endpoints, Endpoint{
+	s.endpoints = append(s.endpoints, endpoint{
 		name:         name,
 		arguments:    params,
 		handler:      endpointHandler,
@@ -131,30 +134,37 @@ func (s *Server) addEndpoint(method method, name string, handler interface{}, ar
 	})
 }
 
+// With adds chi middlewares
 func (s *Server) With(middlewares ...func(http.Handler) http.Handler) {
 	s.middlewares = append(s.middlewares, middlewares...)
 }
 
+// Post adds an endpoint with a POST method
 func (s *Server) Post(pattern string, handler interface{}, args ...Argument) {
 	s.addEndpoint(POST, pattern, handler, args)
 }
 
+// Get adds an endpoint with a GET method
 func (s *Server) Get(pattern string, handler interface{}, args ...Argument) {
 	s.addEndpoint(GET, pattern, handler, args)
 }
 
+// Put adds an endpoint with a PUT method
 func (s *Server) Put(pattern string, handler interface{}, args ...Argument) {
 	s.addEndpoint(PUT, pattern, handler, args)
 }
 
+// Patch adds an endpoint with a PATCH method
 func (s *Server) Patch(pattern string, handler interface{}, args ...Argument) {
 	s.addEndpoint(PATCH, pattern, handler, args)
 }
 
+// Delete adds an endpoint with a DELETE method
 func (s *Server) Delete(pattern string, handler interface{}, args ...Argument) {
 	s.addEndpoint(DELETE, pattern, handler, args)
 }
 
+// Handler returns an http.Handler of the API
 func (s *Server) Handler() (http.Handler, error) {
 	r := chi.NewRouter()
 
@@ -170,7 +180,7 @@ func (s *Server) Handler() (http.Handler, error) {
 	router = r.With(s.middlewares...)
 
 	for _, e := range s.endpoints {
-		f := func(e Endpoint) http.HandlerFunc {
+		f := func(e endpoint) http.HandlerFunc {
 			return func(w http.ResponseWriter, r *http.Request) {
 				e.handler.HandleRequest(w, r, s.logger, e)
 			}
@@ -200,6 +210,7 @@ func (s *Server) Handler() (http.Handler, error) {
 	return router, nil
 }
 
+// Start starts the api
 func (s *Server) Start(address string) error {
 	handler, err := s.Handler()
 	if err != nil {

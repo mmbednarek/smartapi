@@ -4,9 +4,15 @@ import (
 	"github.com/mmbednarek/smartapi/example"
 )
 
-type Storage map[string]example.UserData
+type storage map[string]example.UserData
 
-func (s Storage) StoreUser(id string, data *example.UserData) error {
+// NewStorage creates new storage
+func NewStorage() example.Storage {
+	return storage{}
+}
+
+// StoreUser stores a user
+func (s storage) StoreUser(id string, data *example.UserData) error {
 	if _, ok := s[id]; ok {
 		return example.ErrUserAlreadyExists
 	}
@@ -14,7 +20,8 @@ func (s Storage) StoreUser(id string, data *example.UserData) error {
 	return nil
 }
 
-func (s Storage) GetUser(id string) (*example.UserData, error) {
+// GetUser gets a user
+func (s storage) GetUser(id string) (*example.UserData, error) {
 	user, ok := s[id]
 	if !ok {
 		return nil, example.ErrUserDoesNotExists

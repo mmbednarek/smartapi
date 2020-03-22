@@ -14,21 +14,25 @@ var (
 	ErrUserAlreadyExists = errors.New("user already exists")
 )
 
+// Storage is a storage interface
 type Storage interface {
 	StoreUser(id string, data *UserData) error
 	GetUser(id string) (*UserData, error)
 }
 
+// UserData contains basic user information
 type UserData struct {
 	Name string `json:"name"`
 	Age  int    `json:"age"`
 }
 
+// API struct
 type API struct {
 	*smartapi.Server
 	storage Storage
 }
 
+// API constructor
 func NewAPI(storage Storage) *API {
 	return &API{
 		Server:  smartapi.NewServer(nil),
@@ -36,9 +40,11 @@ func NewAPI(storage Storage) *API {
 	}
 }
 
+// Order structure
 type Order struct {
 }
 
+// Init inits the api
 func (a *API) Init() {
 	a.Get("/user", a.GetUser,
 		smartapi.Context(),
@@ -81,6 +87,7 @@ func (a *API) Init() {
 	)
 }
 
+// GetUser handles the user endpoint
 func (a *API) GetUser(ctx context.Context, name string) (*UserData, error) {
 	user, err := a.storage.GetUser(name)
 	if err != nil {
@@ -92,6 +99,7 @@ func (a *API) GetUser(ctx context.Context, name string) (*UserData, error) {
 	return user, nil
 }
 
+// NewUser handles the POST user endpoint
 func (a *API) NewUser(userID string, userData *UserData) error {
 	if err := a.storage.StoreUser(userID, userData); err != nil {
 		if errors.Is(err, ErrUserAlreadyExists) {

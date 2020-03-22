@@ -1,5 +1,6 @@
 # SmartAPI REST Library
 
+[![GoDoc](https://godoc.org/github.com/mmbednarek/smartapi?status.svg)](https://godoc.org/github.com/mmbednarek/smartapi)
 [![Build Status](https://travis-ci.org/mmbednarek/smartapi.svg?branch=master)](https://travis-ci.org/mmbednarek/smartapi)
 
 SmartAPI allows you to quickly implement solid REST APIs in Golang.

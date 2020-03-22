@@ -11,6 +11,20 @@
   <component name="CoverageViewManager">
     <option name="myElementSize" value="148" />
   </component>
+  <component name="DatabaseView">
+    <option name="SHOW_INTERMEDIATE" value="true" />
+    <option name="GROUP_DATA_SOURCES" value="true" />
+    <option name="GROUP_SCHEMA" value="true" />
+    <option name="GROUP_CONTENTS" value="false" />
+    <option name="SORT_POSITIONED" value="false" />
+    <option name="SHOW_EMPTY_GROUPS" value="false" />
+    <option name="AUTO_SCROLL_FROM_SOURCE" value="false" />
+    <option name="HIDDEN_KINDS">
+      <set />
+    </option>
+    <expand />
+    <select />
+  </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
       <list>
@@ -47,7 +61,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="Go Test.go test github.com/mmbednarek/smartapi">
+  <component name="RunManager" selected="Go Test.TestAttributes in github.com/mmbednarek/smartapi">
     <configuration default="true" type="GoApplicationRunConfiguration" factoryName="Go Application">
       <module name="smartapi" />
       <working_directory value="$PROJECT_DIR$/" />
@@ -123,8 +137,8 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Go Test.go test github.com/mmbednarek/smartapi" />
         <item itemvalue="Go Test.TestAttributes in github.com/mmbednarek/smartapi" />
+        <item itemvalue="Go Test.go test github.com/mmbednarek/smartapi" />
         <item itemvalue="Go Build.go build github.com/mmbednarek/smartapi/example/cmd/example" />
         <item itemvalue="Go Test.TestHandlersErrors in github.com/mmbednarek/smartapi" />
         <item itemvalue="Go Test.TestError in github.com/mmbednarek/smartapi" />
@@ -134,8 +148,19 @@
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="1" />
   </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/../github.com/mmbednarek/smartapi/arguments.go</url>
+          <line>45</line>
+          <option name="timeStamp" value="22" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/betterapi$go_test_github_com_mmbednarek_smartapi.out" NAME="go test github.com/mmbednarek/smartapi Coverage Results" MODIFIED="1584914082120" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="GoCoverage" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" />
-    <SUITE FILE_PATH="coverage/betterapi$TestAttributes_in_github_com_mmbednarek_smartapi.out" NAME="TestAttributes in github.com/mmbednarek/smartapi Coverage Results" MODIFIED="1584914068187" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="GoCoverage" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" />
+    <SUITE FILE_PATH="coverage/betterapi$TestAttributes_in_github_com_mmbednarek_smartapi.out" NAME="TestAttributes in github.com/mmbednarek/smartapi Coverage Results" MODIFIED="1584915791348" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="GoCoverage" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" />
   </component>
 </project>

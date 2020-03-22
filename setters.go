@@ -4,6 +4,7 @@ import (
 	"net/http"
 )
 
+// Cookies interface allows to add response cookies
 type Cookies interface {
 	Add(c *http.Cookie)
 }
@@ -18,9 +19,10 @@ func (h cookieSetter) Add(c *http.Cookie) {
 		h.w.Header().Set("Set-Cookie", c.String())
 		return
 	}
-	h.w.Header().Set("Set-Cookie", cookies + "; " + c.String())
+	h.w.Header().Set("Set-Cookie", cookies+"; "+c.String())
 }
 
+// Headers interface allows to add response header values
 type Headers interface {
 	Add(key, value string)
 	Set(key, value string)

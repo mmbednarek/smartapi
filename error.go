@@ -2,6 +2,7 @@ package smartapi
 
 import "fmt"
 
+// Error creates an error
 func Error(status int, logMsg string, reason string) ApiError {
 	return statusError{
 		errCode: status,
@@ -10,6 +11,7 @@ func Error(status int, logMsg string, reason string) ApiError {
 	}
 }
 
+// Error creates an error with formatting
 func Errorf(status int, format string, args ...interface{}) ApiError {
 	return statusError{
 		errCode: status,
@@ -18,6 +20,7 @@ func Errorf(status int, format string, args ...interface{}) ApiError {
 	}
 }
 
+// Error wraps already existing error
 func WrapError(status int, err error, reason string) ApiError {
 	return statusError{
 		errCode: status,

@@ -26,6 +26,7 @@ func (a headerArgument) checkArg(arg reflect.Type) error {
 	return nil
 }
 
+// Header reads a header from the request and passes it as string to a function
 func Header(name string) Argument {
 	return headerArgument{name: name}
 }
@@ -50,6 +51,7 @@ func (a jsonBodyArgument) getValue(w http.ResponseWriter, r *http.Request) (refl
 	return value, nil
 }
 
+// JSONBody reads request's body and unmarshals it into a json structure
 func JSONBody(v interface{}) Argument {
 	return jsonBodyArgument{typ: reflect.TypeOf(v)}
 }
@@ -69,6 +71,7 @@ func (u urlParamArgument) getValue(w http.ResponseWriter, r *http.Request) (refl
 	return reflect.ValueOf(chi.URLParam(r, u.name)), nil
 }
 
+// URLParam reads a url param and passes it as a string
 func URLParam(name string) Argument {
 	return urlParamArgument{name: name}
 }
@@ -89,6 +92,7 @@ func (q contextArgument) getValue(w http.ResponseWriter, r *http.Request) (refle
 	return reflect.ValueOf(r.Context()), nil
 }
 
+// Context passes request's context into the function
 func Context() Argument {
 	return contextArgument{}
 }
@@ -105,6 +109,7 @@ func (a returnStatusArgument) getValue(w http.ResponseWriter, r *http.Request) (
 	return reflect.Value{}, nil
 }
 
+// ResponseStatus allows to set successful response status
 func ResponseStatus(status int) Argument {
 	return returnStatusArgument{status: status}
 }
@@ -124,6 +129,7 @@ func (q queryParamArgument) getValue(w http.ResponseWriter, r *http.Request) (re
 	return reflect.ValueOf(r.Form.Get(q.name)), nil
 }
 
+// QueryParam reads a query param and passes it as a string
 func QueryParam(name string) Argument {
 	return queryParamArgument{name: name}
 }
@@ -148,6 +154,7 @@ func (c cookieArgument) getValue(w http.ResponseWriter, r *http.Request) (reflec
 	return reflect.ValueOf(cookie.Value), nil
 }
 
+// Cookie reads a cookie from the request and passes it as a string
 func Cookie(name string) Argument {
 	return cookieArgument{name: name}
 }
@@ -167,6 +174,7 @@ func (headerSetterArgument) getValue(w http.ResponseWriter, r *http.Request) (re
 	return reflect.ValueOf(w.Header()), nil
 }
 
+// ResponseHeader passes an interface to set response header values
 func ResponseHeaders() Argument {
 	return headerSetterArgument{}
 }
@@ -186,6 +194,7 @@ func (c cookieSetterArgument) getValue(w http.ResponseWriter, r *http.Request) (
 	return reflect.ValueOf(cookieSetter{w: w}), nil
 }
 
+// ResponseCookies passes an interface to set cookie values
 func ResponseCookies() Argument {
 	return cookieSetterArgument{}
 }
@@ -202,6 +211,7 @@ func (m middlewareArgument) getValue(w http.ResponseWriter, r *http.Request) (re
 	return reflect.Value{}, nil
 }
 
+// Middleware allows to use chi middlewares
 func Middleware(m ...func(http.Handler) http.Handler) Argument {
 	return middlewareArgument{middlewares: m}
 }
