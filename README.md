@@ -155,7 +155,7 @@ a.Get("/test", func() (interface{}, error) {
 
 ## Errors
 
-To return an error with a status code you can use one of the error functions: `smartapi.Errora(status int, msg, reason string)`, `smartapi.Errorf(status int, msg string, fmt ...interface{})`, `smartapi.WrapError(status int, err error, reason string)`.
+To return an error with a status code you can use one of the error functions: `smartapi.Error(status int, msg, reason string)`, `smartapi.Errorf(status int, msg string, fmt ...interface{})`, `smartapi.WrapError(status int, err error, reason string)`.
 The api error contains an error message and an error reason. The message will be printed with a logger.
 The reason will be returned in the response body. You can also return ordinary errors. They are treated as if their status code was 500.
 
@@ -319,4 +319,4 @@ a.Get("/example", func() error {
 
 ## Future features
 
-Routing will be added shortly.t
+Routing will be added shortly.
