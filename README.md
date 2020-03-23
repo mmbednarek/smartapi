@@ -7,7 +7,7 @@ SmartAPI allows you to quickly implement solid REST APIs in Golang.
 The idea behind the project is to replace handler functions with ordinary looking functions.
 This allows service-level methods to be used as handlers.
 
-SmartAPI is based on [https://github.com/go-chi/chi]() this allows chi middlewares to used.
+SmartAPI is based on [github.com/go-chi/chi](https://github.com/go-chi/chi) this allows chi middlewares to used.
 ## Examples
 
 This example returns a greeting with a name based on a query param `name`.
