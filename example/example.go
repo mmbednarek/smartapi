@@ -10,7 +10,9 @@ import (
 )
 
 var (
+	// Error when the user doesn't exists
 	ErrUserDoesNotExists = errors.New("user does not exists")
+	// Error when user already exists
 	ErrUserAlreadyExists = errors.New("user already exists")
 )
 
@@ -32,7 +34,7 @@ type API struct {
 	storage Storage
 }
 
-// API constructor
+// NewAPI constructor
 func NewAPI(storage Storage) *API {
 	return &API{
 		Server:  smartapi.NewServer(nil),

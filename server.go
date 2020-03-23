@@ -83,8 +83,6 @@ func checkHandler(handlerFunc interface{}, arguments []Argument) (endpointHandle
 		case reflect.Slice:
 			if value == byteType {
 				return byteSliceErrorHandler{handlerFunc: handlerFunc}, nil
-			} else {
-				fmt.Printf("%v != %v", value.Elem(), byteType)
 			}
 			fallthrough
 		case reflect.Ptr, reflect.Interface:
@@ -141,27 +139,27 @@ func (s *Server) With(middlewares ...func(http.Handler) http.Handler) {
 
 // Post adds an endpoint with a POST method
 func (s *Server) Post(pattern string, handler interface{}, args ...Argument) {
-	s.addEndpoint(POST, pattern, handler, args)
+	s.addEndpoint(methodPost, pattern, handler, args)
 }
 
 // Get adds an endpoint with a GET method
 func (s *Server) Get(pattern string, handler interface{}, args ...Argument) {
-	s.addEndpoint(GET, pattern, handler, args)
+	s.addEndpoint(methodGet, pattern, handler, args)
 }
 
 // Put adds an endpoint with a PUT method
 func (s *Server) Put(pattern string, handler interface{}, args ...Argument) {
-	s.addEndpoint(PUT, pattern, handler, args)
+	s.addEndpoint(methodPut, pattern, handler, args)
 }
 
 // Patch adds an endpoint with a PATCH method
 func (s *Server) Patch(pattern string, handler interface{}, args ...Argument) {
-	s.addEndpoint(PATCH, pattern, handler, args)
+	s.addEndpoint(methodPatch, pattern, handler, args)
 }
 
 // Delete adds an endpoint with a DELETE method
 func (s *Server) Delete(pattern string, handler interface{}, args ...Argument) {
-	s.addEndpoint(DELETE, pattern, handler, args)
+	s.addEndpoint(methodDelete, pattern, handler, args)
 }
 
 // Handler returns an http.Handler of the API
@@ -194,15 +192,15 @@ func (s *Server) Handler() (http.Handler, error) {
 		}
 
 		switch e.method {
-		case POST:
+		case methodPost:
 			epRouter.Post(e.name, f)
-		case GET:
+		case methodGet:
 			epRouter.Get(e.name, f)
-		case PATCH:
+		case methodPatch:
 			epRouter.Patch(e.name, f)
-		case PUT:
+		case methodPut:
 			epRouter.Put(e.name, f)
-		case DELETE:
+		case methodDelete:
 			epRouter.Delete(e.name, f)
 		}
 	}

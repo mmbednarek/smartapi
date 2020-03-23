@@ -40,11 +40,11 @@ type API interface {
 type method int
 
 const (
-	POST method = iota
-	GET
-	PATCH
-	DELETE
-	PUT
+	methodPost method = iota
+	methodGet
+	methodPatch
+	methodDelete
+	methodPut
 )
 
 type defaultLogger struct{}

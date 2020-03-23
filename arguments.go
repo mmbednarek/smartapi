@@ -174,7 +174,7 @@ func (headerSetterArgument) getValue(w http.ResponseWriter, r *http.Request) (re
 	return reflect.ValueOf(w.Header()), nil
 }
 
-// ResponseHeader passes an interface to set response header values
+// ResponseHeaders passes an interface to set response header values
 func ResponseHeaders() Argument {
 	return headerSetterArgument{}
 }
