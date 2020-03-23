@@ -10,9 +10,9 @@ import (
 )
 
 var (
-	// Error when the user doesn't exists
+	// ErrUserDoesNotExists is used when when the user doesn't exists
 	ErrUserDoesNotExists = errors.New("user does not exists")
-	// Error when user already exists
+	// ErrUserAlreadyExists is used when when user already exists
 	ErrUserAlreadyExists = errors.New("user already exists")
 )
 
