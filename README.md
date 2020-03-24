@@ -201,6 +201,48 @@ a.Post("/user", func(u *User) error {
 )
 ```
 
+### String Body
+
+String body passes the request's body as a string.
+
+```go
+a.Post("/user", func(body string) error {
+    fmt.Printf("Request body: %s\n", body)
+    return nil
+},
+    smartapi.StringBody(),
+)
+```
+
+### Byte Slice Body
+
+Byte slice body passes the request's body as a byte slice.
+
+```go
+a.Post("/user", func(body []byte) error {
+    fmt.Printf("Request body: %s\n", string(body))
+    return nil
+},
+    smartapi.ByteSliceBody(),
+)
+```
+
+### Body Reader
+
+Byte reader body passes the io.Reader interface to read request's body.
+
+```go
+a.Post("/user", func(body io.Reader) error {
+    buff, err := ioutil.ReadAll()
+    if err != nil {
+        return err
+    }
+    return nil
+},
+    smartapi.BodyReader(),
+)
+```
+
 ### Query param
 
 Query param reads the value of the selected param and passes it as a string to function.

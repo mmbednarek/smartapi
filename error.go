@@ -2,6 +2,13 @@ package smartapi
 
 import "fmt"
 
+// ApiError represents an API error
+type ApiError interface {
+	Error() string
+	Status() int
+	Reason() string
+}
+
 // Error creates an error
 func Error(status int, logMsg string, reason string) ApiError {
 	return statusError{

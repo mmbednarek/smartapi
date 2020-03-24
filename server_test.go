@@ -1,25 +1,40 @@
-package smartapi
+package smartapi_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/mmbednarek/smartapi"
+	"github.com/mmbednarek/smartapi/mocks"
 	"github.com/stretchr/testify/require"
 )
+
+type errorReader struct{}
+
+func (e errorReader) Read(p []byte) (n int, err error) {
+	return 0, errors.New("just errors")
+}
 
 func TestAttributes(t *testing.T) {
 	type test struct {
 		name         string
 		request      func() *http.Request
-		api          func(api *Server)
+		api          func(api *smartapi.Server)
 		responseCode int
 		responseBody []byte
 		checkHeader  func(h http.Header)
+		logger       smartapi.Logger
 	}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
 	tests := []test{
 		{
@@ -31,7 +46,7 @@ func TestAttributes(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				type foo struct {
 					Name    string `json:"name"`
 					Surname string `json:"surname"`
@@ -41,7 +56,175 @@ func TestAttributes(t *testing.T) {
 					require.Equal(t, f.Surname, "Smith")
 					return nil
 				},
-					JSONBody(foo{}),
+					smartapi.JSONBody(foo{}),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "JSONBody Error",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", bytes.NewReader([]byte(`{"name": "John", "surname": "Smith"`)))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type foo struct {
+					Name    string `json:"name"`
+					Surname string `json:"surname"`
+				}
+				api.Post("/test", func(f *foo) error {
+					return nil
+				},
+					smartapi.JSONBody(foo{}),
+				)
+			},
+			responseCode: http.StatusBadRequest,
+			responseBody: []byte("{\"status\":400,\"reason\":\"cannot unmarshal request\"}\n"),
+		},
+		{
+			name: "StringBody",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", bytes.NewReader([]byte("body value")))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(body string) error {
+					require.Equal(t, body, "body value")
+					return nil
+				},
+					smartapi.StringBody(),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "StringBody Error",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", errorReader{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(body string) error {
+					return nil
+				},
+					smartapi.StringBody(),
+				)
+			},
+			responseCode: http.StatusBadRequest,
+			responseBody: []byte("{\"status\":400,\"reason\":\"cannot read request\"}\n"),
+		},
+		{
+			name: "ByteSliceBody",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", bytes.NewReader([]byte("body value")))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(body []byte) error {
+					require.Equal(t, body, []byte("body value"))
+					return nil
+				},
+					smartapi.ByteSliceBody(),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "ByteSliceBody",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", errorReader{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(body []byte) error {
+					return nil
+				},
+					smartapi.ByteSliceBody(),
+				)
+			},
+			responseCode: http.StatusBadRequest,
+			responseBody: []byte("{\"status\":400,\"reason\":\"cannot read request\"}\n"),
+		},
+		{
+			name: "BodyReader",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", bytes.NewReader([]byte("body value")))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(body io.Reader) error {
+					buff := make([]byte, 10)
+					n, err := body.Read(buff)
+					require.NoError(t, err)
+					require.Equal(t, 10, n)
+					require.Equal(t, []byte("body value"), buff)
+					return nil
+				},
+					smartapi.BodyReader(),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "Context",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(ctx context.Context) error {
+					require.NotNil(t, ctx)
+					return nil
+				},
+					smartapi.Context(),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "Middleware",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func() error {
+					return nil
+				},
+					smartapi.Middleware(func(h http.Handler) http.Handler {
+						return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+							h.ServeHTTP(w, r)
+						})
+					}),
 				)
 			},
 			responseCode: http.StatusNoContent,
@@ -58,14 +241,14 @@ func TestAttributes(t *testing.T) {
 				request.Header.Set("X-Test2", "eulav")
 				return request
 			},
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Post("/test", func(test1, test2 string) error {
 					require.Equal(t, test1, "value")
 					require.Equal(t, test2, "eulav")
 					return nil
 				},
-					Header("X-Test1"),
-					Header("X-Test2"),
+					smartapi.Header("X-Test1"),
+					smartapi.Header("X-Test2"),
 				)
 			},
 			responseCode: http.StatusNoContent,
@@ -80,14 +263,14 @@ func TestAttributes(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func(param1, param2 string) error {
 					require.Equal(t, param1, "eulav")
 					require.Equal(t, param2, "value")
 					return nil
 				},
-					QueryParam("param1"),
-					QueryParam("param2"),
+					smartapi.QueryParam("param1"),
+					smartapi.QueryParam("param2"),
 				)
 			},
 			responseCode: http.StatusNoContent,
@@ -102,13 +285,18 @@ func TestAttributes(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func(param1 string) error {
 					return nil
 				},
-					QueryParam("a"),
+					smartapi.QueryParam("a"),
 				)
 			},
+			logger: func() smartapi.Logger {
+				m := mocks.NewMockLogger(ctrl)
+				m.EXPECT().LogApiError(gomock.Any(), smartapi.Error(http.StatusBadRequest, "invalid URL escape \"%Z\"", "could not parse form")).Return().Times(1)
+				return m
+			}(),
 			responseCode: http.StatusBadRequest,
 			responseBody: []byte(`{"status":400,"reason":"could not parse form"}` + "\n"),
 		},
@@ -121,14 +309,14 @@ func TestAttributes(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test/{param1}/orders/{param2}", func(param1, param2 string) error {
 					require.Equal(t, param1, "foo")
 					require.Equal(t, param2, "bar")
 					return nil
 				},
-					URLParam("param1"),
-					URLParam("param2"),
+					smartapi.URLParam("param1"),
+					smartapi.URLParam("param2"),
 				)
 			},
 			responseCode: http.StatusNoContent,
@@ -153,14 +341,14 @@ func TestAttributes(t *testing.T) {
 
 				return request
 			},
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func(c1, c2 string) error {
 					require.Equal(t, c1, "foo")
 					require.Equal(t, c2, "bar")
 					return nil
 				},
-					Cookie("Test1"),
-					Cookie("Test2"),
+					smartapi.Cookie("Test1"),
+					smartapi.Cookie("Test2"),
 				)
 			},
 			responseCode: http.StatusNoContent,
@@ -175,11 +363,11 @@ func TestAttributes(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func(cookie string) error {
 					return nil
 				},
-					Cookie("Test1"),
+					smartapi.Cookie("Test1"),
 				)
 			},
 			responseCode: http.StatusBadRequest,
@@ -195,13 +383,13 @@ func TestAttributes(t *testing.T) {
 
 				return request
 			},
-			api: func(api *Server) {
-				api.Get("/test", func(headers Headers) error {
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func(headers smartapi.Headers) error {
 					headers.Set("Test1", "foo")
 					headers.Set("Test2", "bar")
 					return nil
 				},
-					ResponseHeaders(),
+					smartapi.ResponseHeaders(),
 				)
 			},
 			responseCode: http.StatusNoContent,
@@ -221,8 +409,8 @@ func TestAttributes(t *testing.T) {
 
 				return request
 			},
-			api: func(api *Server) {
-				api.Get("/test", func(cookies Cookies) error {
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func(cookies smartapi.Cookies) error {
 					cookies.Add(&http.Cookie{
 						Name:    "Test1",
 						Value:   "foo",
@@ -235,7 +423,7 @@ func TestAttributes(t *testing.T) {
 					})
 					return nil
 				},
-					ResponseCookies(),
+					smartapi.ResponseCookies(),
 				)
 			},
 			responseCode: http.StatusNoContent,
@@ -249,7 +437,7 @@ func TestAttributes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			request := tt.request()
-			api := NewServer(nil)
+			api := smartapi.NewServer(tt.logger)
 			tt.api(api)
 
 			r := httptest.NewRecorder()
@@ -275,7 +463,7 @@ func TestHandlers(t *testing.T) {
 	type test struct {
 		name         string
 		request      func() *http.Request
-		api          func(api *Server)
+		api          func(api *smartapi.Server)
 		responseCode int
 		responseBody []byte
 	}
@@ -290,7 +478,7 @@ func TestHandlers(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func() error {
 					return nil
 				})
@@ -307,11 +495,11 @@ func TestHandlers(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func() error {
 					return nil
 				},
-					ResponseStatus(http.StatusAccepted),
+					smartapi.ResponseStatus(http.StatusAccepted),
 				)
 			},
 			responseCode: http.StatusAccepted,
@@ -326,7 +514,7 @@ func TestHandlers(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func() (string, error) {
 					return "foobar", nil
 				})
@@ -344,7 +532,7 @@ func TestHandlers(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func() ([]byte, error) {
 					return []byte{1, 2, 45, 23}, nil
 				})
@@ -361,7 +549,7 @@ func TestHandlers(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				type bar struct {
 					Field1 string `json:"field1"`
 					Field2 string `json:"field2"`
@@ -393,7 +581,7 @@ func TestHandlers(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				type bar struct {
 					Field1 string `json:"field1"`
 					Field2 string `json:"field2"`
@@ -425,7 +613,7 @@ func TestHandlers(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				type bar struct {
 					Field1 string `json:"field1"`
 					Field2 string `json:"field2"`
@@ -457,7 +645,7 @@ func TestHandlers(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func() ([]string, error) {
 					return []string{
 						"foo",
@@ -475,7 +663,7 @@ func TestHandlers(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			request := tt.request()
-			api := NewServer(nil)
+			api := smartapi.NewServer(nil)
 			tt.api(api)
 
 			r := httptest.NewRecorder()
@@ -496,14 +684,14 @@ func TestHandlers(t *testing.T) {
 func TestHandlersErrors(t *testing.T) {
 	type test struct {
 		name   string
-		api    func(api *Server)
+		api    func(api *smartapi.Server)
 		expect error
 	}
 
 	tests := []test{
 		{
 			name: "Too many arguments",
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func(value string) error {
 					return nil
 				})
@@ -512,25 +700,34 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Too little arguments",
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func() error {
 					return nil
 				},
-					QueryParam("name"),
+					smartapi.QueryParam("name"),
 				)
 			},
 			expect: errors.New("endpoint /test: number of arguments of a function doesn't match provided arguments"),
 		},
 		{
 			name: "Non function handler",
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", 456)
 			},
 			expect: errors.New("endpoint /test: handler must be a function"),
 		},
 		{
+			name: "Many errors at once",
+			api: func(api *smartapi.Server) {
+				api.Get("/test", 456)
+				api.Get("/foo", "hello")
+				api.Get("/bar", []string{"shit"})
+			},
+			expect: errors.New("endpoint /test: handler must be a function, endpoint /foo: handler must be a function, endpoint /bar: handler must be a function"),
+		},
+		{
 			name: "Invalid return type",
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func() int {
 					return 0
 				})
@@ -539,7 +736,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Invalid return type 2",
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func() (string, int) {
 					return "", 0
 				})
@@ -548,7 +745,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Invalid return type 3",
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func() (struct{}, int) {
 					return struct{}{}, 0
 				})
@@ -557,7 +754,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Invalid return type 4",
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func() (*struct{}, int) {
 					return &struct{}{}, 0
 				})
@@ -566,7 +763,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Invalid return type 5",
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func() ([]byte, int) {
 					return []byte(""), 0
 				})
@@ -575,51 +772,131 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "QueryParam wrong type",
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func(value int) error {
 					return nil
 				},
-					QueryParam("name"),
+					smartapi.QueryParam("name"),
 				)
 			},
 			expect: errors.New("endpoint /test: expected a string type"),
 		},
 		{
 			name: "URLParam wrong type",
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test/{name}", func(value int) error {
 					return nil
 				},
-					URLParam("name"),
+					smartapi.URLParam("name"),
 				)
 			},
 			expect: errors.New("endpoint /test/{name}: expected a string type"),
 		},
 		{
 			name: "Header wrong type",
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func(value int) error {
 					return nil
 				},
-					Header("name"),
+					smartapi.Header("name"),
 				)
 			},
 			expect: errors.New("endpoint /test: expected a string type"),
 		},
 		{
 			name: "Cookie wrong type",
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func(value int) error {
 					return nil
 				},
-					Cookie("name"),
+					smartapi.Cookie("name"),
 				)
 			},
 			expect: errors.New("endpoint /test: expected a string type"),
 		},
 		{
+			name: "JSON body wrong type",
+			api: func(api *smartapi.Server) {
+				type s struct {
+					Field string
+				}
+				api.Get("/test", func(value s) error {
+					return nil
+				},
+					smartapi.JSONBody(s{}),
+				)
+			},
+			expect: errors.New("endpoint /test: invalid type"),
+		},
+		{
+			name: "String body wrong type",
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func(value int) error {
+					return nil
+				},
+					smartapi.StringBody(),
+				)
+			},
+			expect: errors.New("endpoint /test: expected string type"),
+		},
+		{
+			name: "Byte slice wrong type",
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func(value int) error {
+					return nil
+				},
+					smartapi.ByteSliceBody(),
+				)
+			},
+			expect: errors.New("endpoint /test: expected a byte slice"),
+		},
+		{
+			name: "Reader wrong type",
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func(value interface{}) error {
+					return nil
+				},
+					smartapi.BodyReader(),
+				)
+			},
+			expect: errors.New("endpoint /test: expected io.Reader interface"),
+		},
+		{
+			name: "Context Wrong Type",
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(ctx int) error {
+					return nil
+				},
+					smartapi.Context(),
+				)
+			},
+			expect: errors.New("endpoint /test: expected context.Context"),
+		},
+		{
+			name: "Headers Wrong Type",
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(test int) error {
+					return nil
+				},
+					smartapi.ResponseHeaders(),
+				)
+			},
+			expect: errors.New("endpoint /test: argument's type must be smartapi.Headers"),
+		},
+		{
+			name: "Cookies Wrong Type",
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(test int) error {
+					return nil
+				},
+					smartapi.ResponseCookies(),
+				)
+			},
+			expect: errors.New("endpoint /test: argument's type must be smartapi.Cookies"),
+		},
+		{
 			name: "Invalid return value type",
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func() (func(), error) {
 					return func() {
 					}, nil
@@ -629,7 +906,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Too many return arguments",
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func() (string, string, error) {
 					return "", "", nil
 				})
@@ -640,7 +917,7 @@ func TestHandlersErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			api := NewServer(nil)
+			api := smartapi.NewServer(nil)
 			tt.api(api)
 			_, err := api.Handler()
 			require.Equal(t, err, tt.expect)
@@ -648,35 +925,39 @@ func TestHandlersErrors(t *testing.T) {
 	}
 }
 
-func TestError(t *testing.T) {
+func TestMethods(t *testing.T) {
 	type test struct {
 		name         string
 		request      func() *http.Request
-		api          func(api *Server)
+		api          func(api *smartapi.Server)
 		responseCode int
 		responseBody []byte
+		logger       smartapi.Logger
 	}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
 	tests := []test{
 		{
-			name: "Error",
+			name: "POST",
 			request: func() *http.Request {
-				request, err := http.NewRequest("GET", "/test", nil)
+				request, err := http.NewRequest("POST", "/test", nil)
 				if err != nil {
 					t.Fatal(err)
 				}
 				return request
 			},
-			api: func(api *Server) {
-				api.Get("/test", func() error {
-					return Error(http.StatusForbidden, "message", "reason")
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func() error {
+					return nil
 				})
 			},
-			responseCode: http.StatusForbidden,
-			responseBody: []byte(`{"status":403,"reason":"reason"}` + "\n"),
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
 		},
 		{
-			name: "Errorf",
+			name: "GET",
 			request: func() *http.Request {
 				request, err := http.NewRequest("GET", "/test", nil)
 				if err != nil {
@@ -684,37 +965,70 @@ func TestError(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *Server) {
+			api: func(api *smartapi.Server) {
 				api.Get("/test", func() error {
-					return Errorf(http.StatusForbidden, "message: %s!", "format")
+					return nil
 				})
 			},
-			responseCode: http.StatusForbidden,
-			responseBody: []byte(`{"status":403,"reason":"unknown"}` + "\n"),
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
 		},
 		{
-			name: "WrapError",
+			name: "PUT",
 			request: func() *http.Request {
-				request, err := http.NewRequest("GET", "/test", nil)
+				request, err := http.NewRequest("PUT", "/test", nil)
 				if err != nil {
 					t.Fatal(err)
 				}
 				return request
 			},
-			api: func(api *Server) {
-				api.Get("/test", func() error {
-					return WrapError(http.StatusForbidden, errors.New("error"), "reason")
+			api: func(api *smartapi.Server) {
+				api.Put("/test", func() error {
+					return nil
 				})
 			},
-			responseCode: http.StatusForbidden,
-			responseBody: []byte(`{"status":403,"reason":"reason"}` + "\n"),
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "PATCH",
+			request: func() *http.Request {
+				request, err := http.NewRequest("PATCH", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Patch("/test", func() error {
+					return nil
+				})
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "DELETE",
+			request: func() *http.Request {
+				request, err := http.NewRequest("DELETE", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Delete("/test", func() error {
+					return nil
+				})
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
 		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			request := tt.request()
-			api := NewServer(nil)
+			api := smartapi.NewServer(tt.logger)
 			tt.api(api)
 
 			r := httptest.NewRecorder()
@@ -728,6 +1042,180 @@ func TestError(t *testing.T) {
 
 			require.Equal(t, r.Code, tt.responseCode)
 			require.Equal(t, r.Body, bytes.NewBuffer(tt.responseBody))
+		})
+	}
+}
+
+func TestError(t *testing.T) {
+	type test struct {
+		name         string
+		request      func() *http.Request
+		api          func(api *smartapi.Server)
+		responseCode int
+		responseBody []byte
+		logger       smartapi.Logger
+	}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	tests := []test{
+		{
+			name: "Error",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func() error {
+					return smartapi.Error(http.StatusForbidden, "message", "reason")
+				})
+			},
+			logger: func() smartapi.Logger {
+				m := mocks.NewMockLogger(ctrl)
+				m.EXPECT().LogApiError(gomock.Any(), smartapi.Error(http.StatusForbidden, "message", "reason")).Return().Times(1)
+				return m
+			}(),
+			responseCode: http.StatusForbidden,
+			responseBody: []byte(`{"status":403,"reason":"reason"}` + "\n"),
+		},
+		{
+			name: "Errorf",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func() error {
+					return smartapi.Errorf(http.StatusForbidden, "message: %s!", "format")
+				})
+			},
+			logger: func() smartapi.Logger {
+				m := mocks.NewMockLogger(ctrl)
+				m.EXPECT().LogApiError(gomock.Any(), smartapi.Error(http.StatusForbidden, "message: format!", "unknown")).Return().Times(1)
+				return m
+			}(),
+			responseCode: http.StatusForbidden,
+			responseBody: []byte(`{"status":403,"reason":"unknown"}` + "\n"),
+		},
+		{
+			name: "WrapError",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func() error {
+					return smartapi.WrapError(http.StatusForbidden, errors.New("error"), "reason")
+				})
+			},
+			logger: func() smartapi.Logger {
+				m := mocks.NewMockLogger(ctrl)
+				m.EXPECT().LogApiError(gomock.Any(), smartapi.Error(http.StatusForbidden, "error", "reason")).Return().Times(1)
+				return m
+			}(),
+			responseCode: http.StatusForbidden,
+			responseBody: []byte(`{"status":403,"reason":"reason"}` + "\n"),
+		},
+		{
+			name: "OrdinaryError",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func() error {
+					return errors.New("error")
+				})
+			},
+			logger: func() smartapi.Logger {
+				m := mocks.NewMockLogger(ctrl)
+				m.EXPECT().LogError(gomock.Any(), errors.New("error")).Return().Times(1)
+				return m
+			}(),
+			responseCode: http.StatusInternalServerError,
+			responseBody: []byte(`{"status":500,"reason":"unknown"}` + "\n"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			request := tt.request()
+			api := smartapi.NewServer(tt.logger)
+			tt.api(api)
+
+			r := httptest.NewRecorder()
+
+			handler, err := api.Handler()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			handler.ServeHTTP(r, request)
+
+			require.Equal(t, r.Code, tt.responseCode)
+			require.Equal(t, r.Body, bytes.NewBuffer(tt.responseBody))
+		})
+	}
+}
+
+func TestStartAPI(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	type args struct {
+		a       smartapi.API
+		address string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "StartOK",
+			args: args{
+				a: func() smartapi.API {
+					m := mocks.NewMockAPI(ctrl)
+					m.EXPECT().Init().Times(1)
+					m.EXPECT().Start(":80").Return(nil).Times(1)
+					return m
+				}(),
+				address: ":80",
+			},
+			wantErr: false,
+		},
+		{
+			name: "StartError",
+			args: args{
+				a: func() smartapi.API {
+					m := mocks.NewMockAPI(ctrl)
+					m.EXPECT().Init().Times(1)
+					m.EXPECT().Start(":80").Return(errors.New("some error")).Times(1)
+					return m
+				}(),
+				address: ":80",
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := smartapi.StartAPI(tt.args.a, tt.args.address); (err != nil) != tt.wantErr {
+				t.Errorf("StartAPI() error = %v, wantErr %v", err, tt.wantErr)
+			}
 		})
 	}
 }

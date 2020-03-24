@@ -5,11 +5,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"reflect"
 
 	"github.com/go-chi/chi"
 )
+
+// EndpointParam is used with endpoint definition
+type EndpointParam interface {}
+
+// Argument represents an argument passed to a function
+type Argument interface {
+	checkArg(arg reflect.Type) error
+	getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error)
+}
 
 type headerArgument struct {
 	name string
@@ -27,7 +38,7 @@ func (a headerArgument) checkArg(arg reflect.Type) error {
 }
 
 // Header reads a header from the request and passes it as string to a function
-func Header(name string) Argument {
+func Header(name string) EndpointParam {
 	return headerArgument{name: name}
 }
 
@@ -46,14 +57,80 @@ func (a jsonBodyArgument) getValue(w http.ResponseWriter, r *http.Request) (refl
 	value := reflect.New(a.typ)
 	obj := value.Interface()
 	if err := json.NewDecoder(r.Body).Decode(obj); err != nil {
-		return reflect.Value{}, err
+		return reflect.Value{}, WrapError(http.StatusBadRequest, err, "cannot unmarshal request")
 	}
 	return value, nil
 }
 
 // JSONBody reads request's body and unmarshals it into a json structure
-func JSONBody(v interface{}) Argument {
+func JSONBody(v interface{}) EndpointParam {
 	return jsonBodyArgument{typ: reflect.TypeOf(v)}
+}
+
+type stringBodyArgument struct{}
+
+func (s stringBodyArgument) checkArg(arg reflect.Type) error {
+	if arg.Kind() != reflect.String {
+		return errors.New("expected string type")
+	}
+	return nil
+}
+
+func (s stringBodyArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
+	result, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return reflect.Value{}, WrapError(http.StatusBadRequest, err, "cannot read request")
+	}
+	return reflect.ValueOf(string(result)), nil
+}
+
+// StringBody reads request's body end passes it as a string
+func StringBody() EndpointParam {
+	return stringBodyArgument{}
+}
+
+type byteSliceBodyArgument struct{}
+
+var byteSliceType = reflect.TypeOf([]byte(nil))
+
+func (s byteSliceBodyArgument) checkArg(arg reflect.Type) error {
+	if arg != byteSliceType {
+		return errors.New("expected a byte slice")
+	}
+	return nil
+}
+
+func (s byteSliceBodyArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
+	result, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return reflect.Value{}, WrapError(http.StatusBadRequest, err, "cannot read request")
+	}
+	return reflect.ValueOf(result), nil
+}
+
+// ByteSliceBody reads request's body end passes it as a byte slice.
+func ByteSliceBody() EndpointParam {
+	return byteSliceBodyArgument{}
+}
+
+type bodyReaderArgument struct{}
+
+var readerType = reflect.TypeOf((*io.Reader)(nil)).Elem()
+
+func (b bodyReaderArgument) checkArg(arg reflect.Type) error {
+	if arg != readerType {
+		return errors.New("expected io.Reader interface")
+	}
+	return nil
+}
+
+func (b bodyReaderArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
+	return reflect.ValueOf(r.Body), nil
+}
+
+// BodyReader passes an io.Reader interface to read request's body.
+func BodyReader() EndpointParam {
+	return bodyReaderArgument{}
 }
 
 type urlParamArgument struct {
@@ -72,7 +149,7 @@ func (u urlParamArgument) getValue(w http.ResponseWriter, r *http.Request) (refl
 }
 
 // URLParam reads a url param and passes it as a string
-func URLParam(name string) Argument {
+func URLParam(name string) EndpointParam {
 	return urlParamArgument{name: name}
 }
 
@@ -93,25 +170,17 @@ func (q contextArgument) getValue(w http.ResponseWriter, r *http.Request) (refle
 }
 
 // Context passes request's context into the function
-func Context() Argument {
+func Context() EndpointParam {
 	return contextArgument{}
 }
 
-type returnStatusArgument struct {
+type responseStatusArgument struct {
 	status int
 }
 
-func (a returnStatusArgument) checkArg(arg reflect.Type) error {
-	return nil
-}
-
-func (a returnStatusArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
-	return reflect.Value{}, nil
-}
-
 // ResponseStatus allows to set successful response status
-func ResponseStatus(status int) Argument {
-	return returnStatusArgument{status: status}
+func ResponseStatus(status int) EndpointParam {
+	return responseStatusArgument{status: status}
 }
 
 type queryParamArgument struct {
@@ -130,7 +199,7 @@ func (q queryParamArgument) getValue(w http.ResponseWriter, r *http.Request) (re
 }
 
 // QueryParam reads a query param and passes it as a string
-func QueryParam(name string) Argument {
+func QueryParam(name string) EndpointParam {
 	return queryParamArgument{name: name}
 }
 
@@ -155,7 +224,7 @@ func (c cookieArgument) getValue(w http.ResponseWriter, r *http.Request) (reflec
 }
 
 // Cookie reads a cookie from the request and passes it as a string
-func Cookie(name string) Argument {
+func Cookie(name string) EndpointParam {
 	return cookieArgument{name: name}
 }
 
@@ -175,7 +244,7 @@ func (headerSetterArgument) getValue(w http.ResponseWriter, r *http.Request) (re
 }
 
 // ResponseHeaders passes an interface to set response header values
-func ResponseHeaders() Argument {
+func ResponseHeaders() EndpointParam {
 	return headerSetterArgument{}
 }
 
@@ -195,7 +264,7 @@ func (c cookieSetterArgument) getValue(w http.ResponseWriter, r *http.Request) (
 }
 
 // ResponseCookies passes an interface to set cookie values
-func ResponseCookies() Argument {
+func ResponseCookies() EndpointParam {
 	return cookieSetterArgument{}
 }
 
@@ -203,15 +272,7 @@ type middlewareArgument struct {
 	middlewares []func(http.Handler) http.Handler
 }
 
-func (m middlewareArgument) checkArg(arg reflect.Type) error {
-	return nil
-}
-
-func (m middlewareArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
-	return reflect.Value{}, nil
-}
-
 // Middleware allows to use chi middlewares
-func Middleware(m ...func(http.Handler) http.Handler) Argument {
+func Middleware(m ...func(http.Handler) http.Handler) EndpointParam {
 	return middlewareArgument{middlewares: m}
 }

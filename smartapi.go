@@ -3,26 +3,7 @@ package smartapi
 import (
 	"context"
 	"log"
-	"net/http"
-	"reflect"
 )
-
-type endpointHandler interface {
-	HandleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint)
-}
-
-// Argument is used with endpoint definition
-type Argument interface {
-	checkArg(arg reflect.Type) error
-	getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error)
-}
-
-// ApiError represents an API error
-type ApiError interface {
-	error
-	Status() int
-	Reason() string
-}
 
 // Logger logs the outcome of unsuccessful http requests
 type Logger interface {
@@ -34,7 +15,6 @@ type Logger interface {
 type API interface {
 	Start(string) error
 	Init()
-	Handler() (http.Handler, error)
 }
 
 type method int

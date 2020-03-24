@@ -96,7 +96,7 @@ func checkHandler(handlerFunc interface{}, arguments []Argument) (endpointHandle
 	return nil, errors.New("invalid number of return arguments")
 }
 
-func (s *Server) addEndpoint(method method, name string, handler interface{}, args []Argument) {
+func (s *Server) addEndpoint(method method, name string, handler interface{}, args []EndpointParam) {
 	returnStatus := http.StatusNoContent
 	query := false
 
@@ -104,15 +104,15 @@ func (s *Server) addEndpoint(method method, name string, handler interface{}, ar
 	var middlewares []func(http.Handler) http.Handler
 	for _, a := range args {
 		switch a.(type) {
-		case returnStatusArgument:
-			returnStatus = a.(returnStatusArgument).status
+		case responseStatusArgument:
+			returnStatus = a.(responseStatusArgument).status
 		case middlewareArgument:
 			middlewares = append(middlewares, a.(middlewareArgument).middlewares...)
 		case queryParamArgument:
 			query = true
-			params = append(params, a)
-		default:
-			params = append(params, a)
+			params = append(params, a.(Argument))
+		case Argument:
+			params = append(params, a.(Argument))
 		}
 	}
 
@@ -138,27 +138,27 @@ func (s *Server) With(middlewares ...func(http.Handler) http.Handler) {
 }
 
 // Post adds an endpoint with a POST method
-func (s *Server) Post(pattern string, handler interface{}, args ...Argument) {
+func (s *Server) Post(pattern string, handler interface{}, args ...EndpointParam) {
 	s.addEndpoint(methodPost, pattern, handler, args)
 }
 
 // Get adds an endpoint with a GET method
-func (s *Server) Get(pattern string, handler interface{}, args ...Argument) {
+func (s *Server) Get(pattern string, handler interface{}, args ...EndpointParam) {
 	s.addEndpoint(methodGet, pattern, handler, args)
 }
 
 // Put adds an endpoint with a PUT method
-func (s *Server) Put(pattern string, handler interface{}, args ...Argument) {
+func (s *Server) Put(pattern string, handler interface{}, args ...EndpointParam) {
 	s.addEndpoint(methodPut, pattern, handler, args)
 }
 
 // Patch adds an endpoint with a PATCH method
-func (s *Server) Patch(pattern string, handler interface{}, args ...Argument) {
+func (s *Server) Patch(pattern string, handler interface{}, args ...EndpointParam) {
 	s.addEndpoint(methodPatch, pattern, handler, args)
 }
 
 // Delete adds an endpoint with a DELETE method
-func (s *Server) Delete(pattern string, handler interface{}, args ...Argument) {
+func (s *Server) Delete(pattern string, handler interface{}, args ...EndpointParam) {
 	s.addEndpoint(methodDelete, pattern, handler, args)
 }
 
@@ -175,33 +175,34 @@ func (s *Server) Handler() (http.Handler, error) {
 	}
 
 	var router chi.Router
-	router = r.With(s.middlewares...)
+	if len(s.middlewares) > 0 {
+		router = r.With(s.middlewares...)
+	} else {
+		router = r
+	}
 
 	for _, e := range s.endpoints {
 		f := func(e endpoint) http.HandlerFunc {
 			return func(w http.ResponseWriter, r *http.Request) {
-				e.handler.HandleRequest(w, r, s.logger, e)
+				e.handler.handleRequest(w, r, s.logger, e)
 			}
 		}(e)
 
-		var epRouter chi.Router
 		if len(e.middlewares) > 0 {
-			epRouter = router.With(e.middlewares...)
-		} else {
-			epRouter = router
+			router = router.With(e.middlewares...)
 		}
 
 		switch e.method {
 		case methodPost:
-			epRouter.Post(e.name, f)
+			router.Post(e.name, f)
 		case methodGet:
-			epRouter.Get(e.name, f)
+			router.Get(e.name, f)
 		case methodPatch:
-			epRouter.Patch(e.name, f)
+			router.Patch(e.name, f)
 		case methodPut:
-			epRouter.Put(e.name, f)
+			router.Put(e.name, f)
 		case methodDelete:
-			epRouter.Delete(e.name, f)
+			router.Delete(e.name, f)
 		}
 	}
 

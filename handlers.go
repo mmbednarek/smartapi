@@ -8,6 +8,10 @@ import (
 	"reflect"
 )
 
+type endpointHandler interface {
+	handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint)
+}
+
 func getCallAttributes(w http.ResponseWriter, r *http.Request, endpoint endpoint) ([]reflect.Value, error) {
 	if endpoint.query {
 		if err := r.ParseForm(); err != nil {
@@ -67,7 +71,7 @@ type errorOnlyHandler struct {
 	handlerFunc interface{}
 }
 
-func (e errorOnlyHandler) HandleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint) {
+func (e errorOnlyHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint) {
 	attribs, err := getCallAttributes(w, r, endpoint)
 	if err != nil {
 		handleError(r.Context(), w, logger, err)
@@ -90,7 +94,7 @@ type ptrErrorHandler struct {
 	handlerFunc interface{}
 }
 
-func (e ptrErrorHandler) HandleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint) {
+func (e ptrErrorHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint) {
 	attribs, err := getCallAttributes(w, r, endpoint)
 	if err != nil {
 		handleError(r.Context(), w, logger, err)
@@ -122,7 +126,7 @@ type structErrorHandler struct {
 	handlerFunc interface{}
 }
 
-func (s structErrorHandler) HandleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint) {
+func (s structErrorHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint) {
 	attribs, err := getCallAttributes(w, r, endpoint)
 	if err != nil {
 		handleError(r.Context(), w, logger, err)
@@ -149,7 +153,7 @@ type stringErrorHandler struct {
 	handlerFunc interface{}
 }
 
-func (s stringErrorHandler) HandleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint) {
+func (s stringErrorHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint) {
 	attribs, err := getCallAttributes(w, r, endpoint)
 	if err != nil {
 		handleError(r.Context(), w, logger, err)
@@ -182,7 +186,7 @@ type byteSliceErrorHandler struct {
 	handlerFunc interface{}
 }
 
-func (b byteSliceErrorHandler) HandleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint) {
+func (b byteSliceErrorHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint) {
 	attribs, err := getCallAttributes(w, r, endpoint)
 	if err != nil {
 		handleError(r.Context(), w, logger, err)
