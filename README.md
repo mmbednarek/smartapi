@@ -3,12 +3,15 @@
 [![GoDoc](https://godoc.org/github.com/mmbednarek/smartapi?status.svg)](https://godoc.org/github.com/mmbednarek/smartapi)
 [![Build Status](https://travis-ci.org/mmbednarek/smartapi.svg?branch=master)](https://travis-ci.org/mmbednarek/smartapi)
 [![Go Report Card](https://goreportcard.com/badge/github.com/mmbednarek/smartapi)](https://goreportcard.com/report/github.com/mmbednarek/smartapi)
+[![Coverage Status](https://coveralls.io/repos/github/mmbednarek/smartapi/badge.svg?branch=master)](https://coveralls.io/github/mmbednarek/smartapi?branch=master)
 
-SmartAPI allows you to quickly implement solid REST APIs in Golang.
+SmartAPI allows to quickly implement solid REST APIs in Golang.
 The idea behind the project is to replace handler functions with ordinary looking functions.
-This allows service-level methods to be used as handlers.
+This allows service layer methods to be used as handlers.
+Designation of a dedicated API layer is still advisable in order to map errors to status codes, write cookies, headers, etc.
 
-SmartAPI is based on [github.com/go-chi/chi](https://github.com/go-chi/chi) this allows chi middlewares to used.
+SmartAPI is based on [github.com/go-chi/chi](https://github.com/go-chi/chi). This allows Chi middlewares to be used.
+
 ## Examples
 
 This example returns a greeting with a name based on a query param `name`.
@@ -51,7 +54,7 @@ Hello Johnny!
 
 ### Service example
 
-You can use SmartAPI with service level methods like this.
+You can use SmartAPI with service layer methods as shown here.
 
 ```go
 package main
@@ -108,6 +111,14 @@ func main() {
 }
 ```
 
+## Future features
+
+Planned features that will be added really soon.
+
++ Routing
++ Support for legacy handlers
++ Classic http.ResponseWriter as an argument
+
 ## Handler response
 
 ### Empty body response
@@ -156,7 +167,7 @@ a.Get("/test", func() (interface{}, error) {
 ## Errors
 
 To return an error with a status code you can use one of the error functions: `smartapi.Error(status int, msg, reason string)`, `smartapi.Errorf(status int, msg string, fmt ...interface{})`, `smartapi.WrapError(status int, err error, reason string)`.
-The api error contains an error message and an error reason. The message will be printed with a logger.
+The API error contains an error message and an error reason. The message will be printed with a logger.
 The reason will be returned in the response body. You can also return ordinary errors. They are treated as if their status code was 500.
 
 ```go
@@ -257,7 +268,7 @@ a.Get("/user", func(name string) (*User, error) {
 
 ### URL param
 
-URL uses read chi's url param and passes it into a function as a string.
+URL uses read chi's URL param and passes it into a function as a string.
 
 ```go
 a.Get("/user/{name}", func(name string) (*User, error) {
@@ -357,8 +368,3 @@ a.Get("/example", func() error {
 ```
 
 **NOTICE** You can add a middlewares to all the endpoints with `a.With(...)`.
-
-
-## Future features
-
-Routing will be added shortly.
