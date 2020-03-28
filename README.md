@@ -3,7 +3,7 @@
 [![GoDoc](https://godoc.org/github.com/mmbednarek/smartapi?status.svg)](https://godoc.org/github.com/mmbednarek/smartapi)
 [![Build Status](https://travis-ci.org/mmbednarek/smartapi.svg?branch=master)](https://travis-ci.org/mmbednarek/smartapi)
 [![Go Report Card](https://goreportcard.com/badge/github.com/mmbednarek/smartapi)](https://goreportcard.com/report/github.com/mmbednarek/smartapi)
-[![Coverage Status](https://coveralls.io/repos/github/mmbednarek/smartapi/badge.svg?branch=master)](https://coveralls.io/github/mmbednarek/smartapi?branch=master)
+[![Coverage Status](https://coveralls.io/repos/github/mmbednarek/smartapi/badge.svg?branch=master&vs=1)](https://coveralls.io/github/mmbednarek/smartapi?branch=master)
 
 SmartAPI allows to quickly implement solid REST APIs in Golang.
 The idea behind the project is to replace handler functions with ordinary looking functions.
