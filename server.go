@@ -99,28 +99,42 @@ func checkHandler(handlerFunc interface{}, arguments []Argument) (endpointHandle
 func (s *Server) addEndpoint(method method, name string, handler interface{}, args []EndpointParam) {
 	returnStatus := http.StatusNoContent
 	query := false
+	numReadsBody := 0
 
 	var params []Argument
 	var middlewares []func(http.Handler) http.Handler
 	for _, a := range args {
-		switch a.(type) {
-		case responseStatusArgument:
-			returnStatus = a.(responseStatusArgument).status
-		case middlewareArgument:
-			middlewares = append(middlewares, a.(middlewareArgument).middlewares...)
-		case queryParamArgument:
-			query = true
-			params = append(params, a.(Argument))
-		case Argument:
+		flags := a.options()
+		if flags.has(flagArgument) {
 			params = append(params, a.(Argument))
 		}
+		if flags.has(flagParsesQuery) {
+			query = true
+		}
+		if flags.has(flagResponseStatus) {
+			returnStatus = a.(responseStatusArgument).status
+		}
+		if flags.has(flagMiddleware) {
+			middlewares = append(middlewares, a.(middleware).middlewares...)
+		}
+		if flags.has(flagReadsRequestBody) {
+			numReadsBody++
+		}
+	}
+
+	if numReadsBody > 1 {
+		s.errors = append(s.errors, fmt.Errorf("endpoint %s: only one argument can read request's body", name))
 	}
 
 	endpointHandler, err := checkHandler(handler, params)
 	if err != nil {
 		s.errors = append(s.errors, fmt.Errorf("endpoint %s: %w", name, err))
+	}
+
+	if len(s.errors) > 0 {
 		return
 	}
+
 	s.endpoints = append(s.endpoints, endpoint{
 		name:         name,
 		arguments:    params,

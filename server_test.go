@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -52,8 +53,8 @@ func TestAttributes(t *testing.T) {
 					Surname string `json:"surname"`
 				}
 				api.Post("/test", func(f *foo) error {
-					require.Equal(t, f.Name, "John")
-					require.Equal(t, f.Surname, "Smith")
+					require.Equal(t, "John", f.Name)
+					require.Equal(t, "Smith", f.Surname)
 					return nil
 				},
 					smartapi.JSONBody(foo{}),
@@ -96,7 +97,7 @@ func TestAttributes(t *testing.T) {
 			},
 			api: func(api *smartapi.Server) {
 				api.Post("/test", func(body string) error {
-					require.Equal(t, body, "body value")
+					require.Equal(t, "body value", body)
 					return nil
 				},
 					smartapi.StringBody(),
@@ -135,7 +136,7 @@ func TestAttributes(t *testing.T) {
 			},
 			api: func(api *smartapi.Server) {
 				api.Post("/test", func(body []byte) error {
-					require.Equal(t, body, []byte("body value"))
+					require.Equal(t, []byte("body value"), body)
 					return nil
 				},
 					smartapi.ByteSliceBody(),
@@ -217,14 +218,43 @@ func TestAttributes(t *testing.T) {
 				return request
 			},
 			api: func(api *smartapi.Server) {
-				api.Post("/test", func() error {
+				api.Post("/test", func(mhd string) error {
+					require.Equal(t, "test", mhd)
 					return nil
 				},
 					smartapi.Middleware(func(h http.Handler) http.Handler {
 						return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+							r.Header.Set("X-Middleware", "test")
 							h.ServeHTTP(w, r)
 						})
 					}),
+					smartapi.Header("X-Middleware"),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "With Middleware",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.With(func(h http.Handler) http.Handler {
+					return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						r.Header.Set("X-Middleware", "test")
+						h.ServeHTTP(w, r)
+					})
+				})
+				api.Post("/test", func(mhd string) error {
+					require.Equal(t, "test", mhd)
+					return nil
+				},
+					smartapi.Header("X-Middleware"),
 				)
 			},
 			responseCode: http.StatusNoContent,
@@ -243,8 +273,8 @@ func TestAttributes(t *testing.T) {
 			},
 			api: func(api *smartapi.Server) {
 				api.Post("/test", func(test1, test2 string) error {
-					require.Equal(t, test1, "value")
-					require.Equal(t, test2, "eulav")
+					require.Equal(t, "value", test1)
+					require.Equal(t, "eulav", test2)
 					return nil
 				},
 					smartapi.Header("X-Test1"),
@@ -253,6 +283,49 @@ func TestAttributes(t *testing.T) {
 			},
 			responseCode: http.StatusNoContent,
 			responseBody: nil,
+		},
+		{
+			name: "Required Header",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				request.Header.Set("X-Test1", "value")
+				request.Header.Set("X-Test2", "eulav")
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(test1, test2 string) error {
+					require.Equal(t, "value", test1)
+					require.Equal(t, "eulav", test2)
+					return nil
+				},
+					smartapi.RequiredHeader("X-Test1"),
+					smartapi.RequiredHeader("X-Test2"),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "Required Header Error",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(test1 string) error {
+					return nil
+				},
+					smartapi.RequiredHeader("X-Test1"),
+				)
+			},
+			responseCode: http.StatusBadRequest,
+			responseBody: []byte(`{"status":400,"reason":"missing required header X-Test1"}` + "\n"),
 		},
 		{
 			name: "Query Params",
@@ -265,8 +338,8 @@ func TestAttributes(t *testing.T) {
 			},
 			api: func(api *smartapi.Server) {
 				api.Get("/test", func(param1, param2 string) error {
-					require.Equal(t, param1, "eulav")
-					require.Equal(t, param2, "value")
+					require.Equal(t, "eulav", param1)
+					require.Equal(t, "value", param2)
 					return nil
 				},
 					smartapi.QueryParam("param1"),
@@ -301,6 +374,31 @@ func TestAttributes(t *testing.T) {
 			responseBody: []byte(`{"status":400,"reason":"could not parse form"}` + "\n"),
 		},
 		{
+			name: "Post Query Params",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				request.PostForm = url.Values{}
+				request.PostForm.Set("param1", "eulav")
+				request.PostForm.Set("param2", "value")
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(param1, param2 string) error {
+					require.Equal(t, "eulav", param1)
+					require.Equal(t, "value", param2)
+					return nil
+				},
+					smartapi.PostQueryParam("param1"),
+					smartapi.PostQueryParam("param2"),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
 			name: "URL Params",
 			request: func() *http.Request {
 				request, err := http.NewRequest("GET", "/test/foo/orders/bar", nil)
@@ -311,8 +409,8 @@ func TestAttributes(t *testing.T) {
 			},
 			api: func(api *smartapi.Server) {
 				api.Get("/test/{param1}/orders/{param2}", func(param1, param2 string) error {
-					require.Equal(t, param1, "foo")
-					require.Equal(t, param2, "bar")
+					require.Equal(t, "foo", param1)
+					require.Equal(t, "bar", param2)
 					return nil
 				},
 					smartapi.URLParam("param1"),
@@ -343,8 +441,8 @@ func TestAttributes(t *testing.T) {
 			},
 			api: func(api *smartapi.Server) {
 				api.Get("/test", func(c1, c2 string) error {
-					require.Equal(t, c1, "foo")
-					require.Equal(t, c2, "bar")
+					require.Equal(t, "foo", c1)
+					require.Equal(t, "bar", c2)
 					return nil
 				},
 					smartapi.Cookie("Test1"),
@@ -449,8 +547,8 @@ func TestAttributes(t *testing.T) {
 
 			handler.ServeHTTP(r, request)
 
-			require.Equal(t, r.Code, tt.responseCode)
-			require.Equal(t, r.Body, bytes.NewBuffer(tt.responseBody))
+			require.Equal(t, tt.responseCode, r.Code)
+			require.Equal(t, bytes.NewBuffer(tt.responseBody), r.Body)
 
 			if tt.checkHeader != nil {
 				tt.checkHeader(r.Header())
@@ -523,6 +621,59 @@ func TestHandlers(t *testing.T) {
 			responseBody: []byte("foobar"),
 		},
 		{
+			name: "String Handler bad request",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func(header string) (string, error) {
+					return "foobar", nil
+				},
+					smartapi.RequiredHeader("Some-Header"),
+				)
+			},
+			responseCode: http.StatusBadRequest,
+			responseBody: []byte(`{"status":400,"reason":"missing required header Some-Header"}` + "\n"),
+		},
+		{
+			name: "String Handler error",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func() (string, error) {
+					return "", smartapi.Error(http.StatusForbidden, "forbidden", "forbidden")
+				})
+			},
+			responseCode: http.StatusForbidden,
+			responseBody: []byte(`{"status":403,"reason":"forbidden"}` + "\n"),
+		},
+		{
+			name: "String Handler no content",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func() (string, error) {
+					return "", nil
+				})
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
 
 			name: "Byte Slice Handler",
 			request: func() *http.Request {
@@ -539,6 +690,62 @@ func TestHandlers(t *testing.T) {
 			},
 			responseCode: http.StatusOK,
 			responseBody: []byte{1, 2, 45, 23},
+		},
+		{
+
+			name: "Byte Slice Handler Bad Request",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func(header string) ([]byte, error) {
+					return []byte{1, 2, 45, 23}, nil
+				},
+					smartapi.RequiredHeader("Some-Header"),
+				)
+			},
+			responseCode: http.StatusBadRequest,
+			responseBody: []byte(`{"status":400,"reason":"missing required header Some-Header"}` + "\n"),
+		},
+		{
+
+			name: "Byte Slice Handler Error",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func() ([]byte, error) {
+					return nil, smartapi.Error(http.StatusForbidden, "forbidden", "forbidden")
+				})
+			},
+			responseCode: http.StatusForbidden,
+			responseBody: []byte(`{"status":403,"reason":"forbidden"}` + "\n"),
+		},
+		{
+
+			name: "Byte Slice No Content",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func() ([]byte, error) {
+					return nil, nil
+				})
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
 		},
 		{
 			name: "Struct handler",
@@ -573,6 +780,77 @@ func TestHandlers(t *testing.T) {
 			responseBody: []byte(`{"field1":"foo","field2":{"field1":"bar","field2":"foo"}}` + "\n"),
 		},
 		{
+			name: "Struct handler bad request",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type foo struct {
+					Field1 string `json:"field1"`
+					Field2 string `json:"field2"`
+				}
+				api.Get("/test", func(h string) (foo, error) {
+					return foo{
+						Field1: "foo",
+						Field2: "bar",
+					}, nil
+				},
+					smartapi.RequiredHeader("Some-Header"),
+				)
+			},
+			responseCode: http.StatusBadRequest,
+			responseBody: []byte(`{"status":400,"reason":"missing required header Some-Header"}` + "\n"),
+		},
+		{
+			name: "Struct handler error result",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type foo struct {
+					Field1 string `json:"field1"`
+					Field2 string `json:"field2"`
+				}
+				api.Get("/test", func() (foo, error) {
+					return foo{}, smartapi.Error(http.StatusForbidden, "forbidden", "forbidden")
+				})
+			},
+			responseCode: http.StatusForbidden,
+			responseBody: []byte(`{"status":403,"reason":"forbidden"}` + "\n"),
+		},
+		{
+			name: "Struct handler marshal error",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type foo struct {
+					Field1 string   `json:"field1"`
+					Field2 chan int `json:"\x00"`
+				}
+				api.Get("/test", func() (foo, error) {
+					return foo{
+						Field1: "test",
+						Field2: make(chan int),
+					}, nil
+				})
+			},
+			responseCode: http.StatusInternalServerError,
+			responseBody: []byte(`{"status":500,"reason":"cannot encode response"}` + "\n"),
+		},
+		{
 			name: "Pointer handler",
 			request: func() *http.Request {
 				request, err := http.NewRequest("GET", "/test", nil)
@@ -603,6 +881,98 @@ func TestHandlers(t *testing.T) {
 			},
 			responseCode: http.StatusOK,
 			responseBody: []byte(`{"field1":"foo","field2":{"field1":"bar","field2":"foo"}}` + "\n"),
+		},
+		{
+			name: "Pointer handler bad request",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type foo struct {
+					Field1 string `json:"field1"`
+					Field2 string `json:"field2"`
+				}
+				api.Get("/test", func(h string) (*foo, error) {
+					return &foo{
+						Field1: "foo",
+						Field2: "bar",
+					}, nil
+				},
+					smartapi.RequiredHeader("Some-Header"),
+				)
+			},
+			responseCode: http.StatusBadRequest,
+			responseBody: []byte(`{"status":400,"reason":"missing required header Some-Header"}` + "\n"),
+		},
+		{
+			name: "Pointer handler error result",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type foo struct {
+					Field1 string `json:"field1"`
+					Field2 string `json:"field2"`
+				}
+				api.Get("/test", func() (*foo, error) {
+					return nil, smartapi.Error(http.StatusForbidden, "forbidden", "forbidden")
+				})
+			},
+			responseCode: http.StatusForbidden,
+			responseBody: []byte(`{"status":403,"reason":"forbidden"}` + "\n"),
+		},
+		{
+			name: "Pointer handler no result",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type foo struct {
+					Field1 string `json:"field1"`
+					Field2 string `json:"field2"`
+				}
+				api.Get("/test", func() (*foo, error) {
+					return nil, nil
+				})
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "Pointer handler marshal error",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type foo struct {
+					Field1 string   `json:"field1"`
+					Field2 chan int `json:"\x00"`
+				}
+				api.Get("/test", func() (*foo, error) {
+					return &foo{
+						Field1: "test",
+						Field2: make(chan int),
+					}, nil
+				})
+			},
+			responseCode: http.StatusInternalServerError,
+			responseBody: []byte(`{"status":500,"reason":"cannot encode response"}` + "\n"),
 		},
 		{
 			name: "Interface handler",
@@ -675,8 +1045,8 @@ func TestHandlers(t *testing.T) {
 
 			handler.ServeHTTP(r, request)
 
-			require.Equal(t, r.Code, tt.responseCode)
-			require.Equal(t, r.Body, bytes.NewBuffer(tt.responseBody))
+			require.Equal(t, tt.responseCode, r.Code)
+			require.Equal(t, bytes.NewBuffer(tt.responseBody), r.Body)
 		})
 	}
 }
@@ -715,6 +1085,18 @@ func TestHandlersErrors(t *testing.T) {
 				api.Get("/test", 456)
 			},
 			expect: errors.New("endpoint /test: handler must be a function"),
+		},
+		{
+			name: "Only one read argument at a time",
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(str string, bts []byte) (string, error) {
+					return "", nil
+				},
+					smartapi.StringBody(),
+					smartapi.ByteSliceBody(),
+				)
+			},
+			expect: errors.New("endpoint /test: only one argument can read request's body"),
 		},
 		{
 			name: "Many errors at once",
@@ -782,6 +1164,17 @@ func TestHandlersErrors(t *testing.T) {
 			expect: errors.New("endpoint /test: expected a string type"),
 		},
 		{
+			name: "PostQueryParam wrong type",
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func(value int) error {
+					return nil
+				},
+					smartapi.PostQueryParam("name"),
+				)
+			},
+			expect: errors.New("endpoint /test: expected a string type"),
+		},
+		{
 			name: "URLParam wrong type",
 			api: func(api *smartapi.Server) {
 				api.Get("/test/{name}", func(value int) error {
@@ -799,6 +1192,17 @@ func TestHandlersErrors(t *testing.T) {
 					return nil
 				},
 					smartapi.Header("name"),
+				)
+			},
+			expect: errors.New("endpoint /test: expected a string type"),
+		},
+		{
+			name: "Required header wrong type",
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func(value int) error {
+					return nil
+				},
+					smartapi.RequiredHeader("name"),
 				)
 			},
 			expect: errors.New("endpoint /test: expected a string type"),
@@ -920,7 +1324,7 @@ func TestHandlersErrors(t *testing.T) {
 			api := smartapi.NewServer(nil)
 			tt.api(api)
 			_, err := api.Handler()
-			require.Equal(t, err, tt.expect)
+			require.Equal(t, tt.expect, err)
 		})
 	}
 }
@@ -1040,8 +1444,8 @@ func TestMethods(t *testing.T) {
 
 			handler.ServeHTTP(r, request)
 
-			require.Equal(t, r.Code, tt.responseCode)
-			require.Equal(t, r.Body, bytes.NewBuffer(tt.responseBody))
+			require.Equal(t, tt.responseCode, r.Code)
+			require.Equal(t, bytes.NewBuffer(tt.responseBody), r.Body)
 		})
 	}
 }
@@ -1098,7 +1502,11 @@ func TestError(t *testing.T) {
 			},
 			logger: func() smartapi.Logger {
 				m := mocks.NewMockLogger(ctrl)
-				m.EXPECT().LogApiError(gomock.Any(), smartapi.Error(http.StatusForbidden, "message: format!", "unknown")).Return().Times(1)
+				m.EXPECT().LogApiError(gomock.Any(), smartapi.Error(http.StatusForbidden, "message: format!", "unknown")).Do(
+					func(ctx context.Context, err smartapi.ApiError) {
+						require.Equal(t, err.Error(), "message: format!")
+					},
+				).Times(1)
 				return m
 			}(),
 			responseCode: http.StatusForbidden,
@@ -1165,8 +1573,8 @@ func TestError(t *testing.T) {
 
 			handler.ServeHTTP(r, request)
 
-			require.Equal(t, r.Code, tt.responseCode)
-			require.Equal(t, r.Body, bytes.NewBuffer(tt.responseBody))
+			require.Equal(t, tt.responseCode, r.Code)
+			require.Equal(t, bytes.NewBuffer(tt.responseBody), r.Body)
 		})
 	}
 }

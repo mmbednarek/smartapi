@@ -117,7 +117,7 @@ func (e ptrErrorHandler) handleRequest(w http.ResponseWriter, r *http.Request, l
 	}
 
 	if err := json.NewEncoder(w).Encode(responseValue.Interface()); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		handleError(r.Context(), w, logger, WrapError(http.StatusInternalServerError, err, "cannot encode response"))
 		return
 	}
 }
@@ -144,7 +144,7 @@ func (s structErrorHandler) handleRequest(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := json.NewEncoder(w).Encode(responseValue.Interface()); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		handleError(r.Context(), w, logger, WrapError(http.StatusInternalServerError, err, "cannot encode response"))
 		return
 	}
 }

@@ -13,8 +13,24 @@ import (
 	"github.com/go-chi/chi"
 )
 
+type endpointOptions int
+
+const (
+	flagArgument endpointOptions = 1 << iota
+	flagParsesQuery
+	flagResponseStatus
+	flagMiddleware
+	flagReadsRequestBody
+)
+
+func (e endpointOptions) has(o endpointOptions) bool {
+	return e & o != 0
+}
+
 // EndpointParam is used with endpoint definition
-type EndpointParam interface {}
+type EndpointParam interface {
+	options() endpointOptions
+}
 
 // Argument represents an argument passed to a function
 type Argument interface {
@@ -24,6 +40,10 @@ type Argument interface {
 
 type headerArgument struct {
 	name string
+}
+
+func (a headerArgument) options() endpointOptions {
+	return flagArgument
 }
 
 func (a headerArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
@@ -42,8 +62,41 @@ func Header(name string) EndpointParam {
 	return headerArgument{name: name}
 }
 
+type requiredHeaderArgument struct {
+	name string
+}
+
+func (a requiredHeaderArgument) options() endpointOptions {
+	return flagArgument
+}
+
+func (a requiredHeaderArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
+	value := r.Header.Get(a.name)
+	if len(value) == 0 {
+		msg := fmt.Sprintf("missing required header %s", a.name)
+		return reflect.Value{}, Error(http.StatusBadRequest, msg, msg)
+	}
+	return reflect.ValueOf(value), nil
+}
+
+func (a requiredHeaderArgument) checkArg(arg reflect.Type) error {
+	if arg.Kind() != reflect.String {
+		return errors.New("expected a string type")
+	}
+	return nil
+}
+
+// RequiredHeader reads a header from the request and passes it as string to a function
+func RequiredHeader(name string) EndpointParam {
+	return requiredHeaderArgument{name: name}
+}
+
 type jsonBodyArgument struct {
 	typ reflect.Type
+}
+
+func (a jsonBodyArgument) options() endpointOptions {
+	return flagArgument | flagReadsRequestBody
 }
 
 func (a jsonBodyArgument) checkArg(arg reflect.Type) error {
@@ -69,6 +122,10 @@ func JSONBody(v interface{}) EndpointParam {
 
 type stringBodyArgument struct{}
 
+func (stringBodyArgument) options() endpointOptions {
+	return flagArgument | flagReadsRequestBody
+}
+
 func (s stringBodyArgument) checkArg(arg reflect.Type) error {
 	if arg.Kind() != reflect.String {
 		return errors.New("expected string type")
@@ -92,6 +149,10 @@ func StringBody() EndpointParam {
 type byteSliceBodyArgument struct{}
 
 var byteSliceType = reflect.TypeOf([]byte(nil))
+
+func (byteSliceBodyArgument) options() endpointOptions {
+	return flagArgument | flagReadsRequestBody
+}
 
 func (s byteSliceBodyArgument) checkArg(arg reflect.Type) error {
 	if arg != byteSliceType {
@@ -117,6 +178,10 @@ type bodyReaderArgument struct{}
 
 var readerType = reflect.TypeOf((*io.Reader)(nil)).Elem()
 
+func (bodyReaderArgument) options() endpointOptions {
+	return flagArgument | flagReadsRequestBody
+}
+
 func (b bodyReaderArgument) checkArg(arg reflect.Type) error {
 	if arg != readerType {
 		return errors.New("expected io.Reader interface")
@@ -135,6 +200,10 @@ func BodyReader() EndpointParam {
 
 type urlParamArgument struct {
 	name string
+}
+
+func (urlParamArgument) options() endpointOptions {
+	return flagArgument
 }
 
 func (u urlParamArgument) checkArg(arg reflect.Type) error {
@@ -158,6 +227,10 @@ type contextArgument struct {
 
 var ctxType = reflect.TypeOf((*context.Context)(nil)).Elem()
 
+func (contextArgument) options() endpointOptions {
+	return flagArgument
+}
+
 func (q contextArgument) checkArg(arg reflect.Type) error {
 	if arg.Kind() != reflect.Interface || !arg.Implements(ctxType) {
 		return errors.New("expected context.Context")
@@ -178,6 +251,10 @@ type responseStatusArgument struct {
 	status int
 }
 
+func (responseStatusArgument) options() endpointOptions {
+	return flagResponseStatus
+}
+
 // ResponseStatus allows to set successful response status
 func ResponseStatus(status int) EndpointParam {
 	return responseStatusArgument{status: status}
@@ -185,6 +262,10 @@ func ResponseStatus(status int) EndpointParam {
 
 type queryParamArgument struct {
 	name string
+}
+
+func (queryParamArgument) options() endpointOptions {
+	return flagArgument | flagParsesQuery
 }
 
 func (q queryParamArgument) checkArg(arg reflect.Type) error {
@@ -203,8 +284,36 @@ func QueryParam(name string) EndpointParam {
 	return queryParamArgument{name: name}
 }
 
+type postQueryParamArgument struct {
+	name string
+}
+
+func (postQueryParamArgument) options() endpointOptions {
+	return flagArgument | flagParsesQuery
+}
+
+func (p postQueryParamArgument) checkArg(arg reflect.Type) error {
+	if arg.Kind() != reflect.String {
+		return errors.New("expected a string type")
+	}
+	return nil
+}
+
+func (p postQueryParamArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
+	return reflect.ValueOf(r.PostForm.Get(p.name)), nil
+}
+
+// PostQueryParam parses query end passes post query param into a string as an argument
+func PostQueryParam(name string) EndpointParam {
+	return postQueryParamArgument{name: name}
+}
+
 type cookieArgument struct {
 	name string
+}
+
+func (cookieArgument) options() endpointOptions {
+	return flagArgument
 }
 
 func (c cookieArgument) checkArg(arg reflect.Type) error {
@@ -232,6 +341,10 @@ type headerSetterArgument struct{}
 
 var headerSetterType = reflect.TypeOf((*Headers)(nil)).Elem()
 
+func (headerSetterArgument) options() endpointOptions {
+	return flagArgument
+}
+
 func (headerSetterArgument) checkArg(arg reflect.Type) error {
 	if arg != headerSetterType {
 		return errors.New("argument's type must be smartapi.Headers")
@@ -252,6 +365,10 @@ type cookieSetterArgument struct{}
 
 var cookieSetterType = reflect.TypeOf((*Cookies)(nil)).Elem()
 
+func (cookieSetterArgument) options() endpointOptions {
+	return flagArgument
+}
+
 func (c cookieSetterArgument) checkArg(arg reflect.Type) error {
 	if arg != cookieSetterType {
 		return errors.New("argument's type must be smartapi.Cookies")
@@ -268,11 +385,15 @@ func ResponseCookies() EndpointParam {
 	return cookieSetterArgument{}
 }
 
-type middlewareArgument struct {
+type middleware struct {
 	middlewares []func(http.Handler) http.Handler
+}
+
+func (middleware) options() endpointOptions {
+	return flagMiddleware
 }
 
 // Middleware allows to use chi middlewares
 func Middleware(m ...func(http.Handler) http.Handler) EndpointParam {
-	return middlewareArgument{middlewares: m}
+	return middleware{middlewares: m}
 }
