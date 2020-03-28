@@ -290,6 +290,18 @@ a.Get("/example", func(test string) (string, error) {
 )
 ```
 
+### Required Header
+
+Like header, but responds with 400 BAD REQUEST, if the header is not present.
+
+```go
+a.Get("/example", func(test string) (string, error) {
+    return fmt.Sprintf("The X-Test headers is %s", test), nil
+},
+    smartapi.RequiredHeader("X-Test"),
+)
+```
+
 ### Cookie
 
 Reads a cookie from the request and passes the value into a function as a string.
