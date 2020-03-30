@@ -189,6 +189,26 @@ func TestAttributes(t *testing.T) {
 			responseBody: nil,
 		},
 		{
+			name: "ResponseWriter",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", bytes.NewReader([]byte("body value")))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(w http.ResponseWriter) {
+					_, err := w.Write([]byte("RESPONSE"))
+					require.NoError(t, err)
+				},
+					smartapi.ResponseWriter(),
+				)
+			},
+			responseCode: http.StatusOK,
+			responseBody: []byte("RESPONSE"),
+		},
+		{
 			name: "Context",
 			request: func() *http.Request {
 				request, err := http.NewRequest("POST", "/test", nil)
@@ -1297,6 +1317,29 @@ func TestHandlersErrors(t *testing.T) {
 				)
 			},
 			expect: errors.New("endpoint /test: argument's type must be smartapi.Cookies"),
+		},
+		{
+			name: "Response Writer Wrong Type",
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(test int) {
+					return
+				},
+					smartapi.ResponseWriter(),
+				)
+			},
+			expect: errors.New("endpoint /test: argument's type must be http.ResponseWriter"),
+		},
+		{
+			name: "Response Writer Cannot return response",
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(w http.ResponseWriter) (string, error) {
+					_, _ = w.Write([]byte("RESPONSE"))
+					return "string response", nil
+				},
+					smartapi.ResponseWriter(),
+				)
+			},
+			expect: errors.New("endpoint /test: cannot write response and return response"),
 		},
 		{
 			name: "Invalid return value type",

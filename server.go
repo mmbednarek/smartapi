@@ -45,7 +45,7 @@ func NewServer(logger Logger) *Server {
 var errType = reflect.TypeOf((*error)(nil)).Elem()
 var byteType = reflect.TypeOf([]byte(nil))
 
-func checkHandler(handlerFunc interface{}, arguments []Argument) (endpointHandler, error) {
+func checkHandler(handlerFunc interface{}, arguments []Argument, writesResponse bool) (endpointHandler, error) {
 	fnType := reflect.TypeOf(handlerFunc)
 	if fnType.Kind() != reflect.Func {
 		return nil, errors.New("handler must be a function")
@@ -63,6 +63,8 @@ func checkHandler(handlerFunc interface{}, arguments []Argument) (endpointHandle
 	}
 
 	switch fnType.NumOut() {
+	case 0:
+		return noResponseHandler{handlerFunc: handlerFunc}, nil
 	case 1:
 		outValue := fnType.Out(0)
 		if !outValue.Implements(errType) {
@@ -70,6 +72,10 @@ func checkHandler(handlerFunc interface{}, arguments []Argument) (endpointHandle
 		}
 		return errorOnlyHandler{handlerFunc: handlerFunc}, nil
 	case 2:
+		if writesResponse {
+			return nil, errors.New("cannot write response and return response")
+		}
+
 		errValue := fnType.Out(1)
 		if !errValue.Implements(errType) {
 			return nil, errors.New("expect an error type in return arguments")
@@ -99,6 +105,7 @@ func checkHandler(handlerFunc interface{}, arguments []Argument) (endpointHandle
 func (s *Server) addEndpoint(method method, name string, handler interface{}, args []EndpointParam) {
 	returnStatus := http.StatusNoContent
 	query := false
+	writesResponse := false
 	numReadsBody := 0
 
 	var params []Argument
@@ -120,13 +127,17 @@ func (s *Server) addEndpoint(method method, name string, handler interface{}, ar
 		if flags.has(flagReadsRequestBody) {
 			numReadsBody++
 		}
+		if flags.has(flagWritesResponse) {
+			writesResponse = true
+			returnStatus = http.StatusOK
+		}
 	}
 
 	if numReadsBody > 1 {
 		s.errors = append(s.errors, fmt.Errorf("endpoint %s: only one argument can read request's body", name))
 	}
 
-	endpointHandler, err := checkHandler(handler, params)
+	endpointHandler, err := checkHandler(handler, params, writesResponse)
 	if err != nil {
 		s.errors = append(s.errors, fmt.Errorf("endpoint %s: %w", name, err))
 	}

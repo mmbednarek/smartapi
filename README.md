@@ -117,7 +117,6 @@ Planned features that will be added really soon.
 
 + Routing
 + Support for legacy handlers
-+ Classic http.ResponseWriter as an argument
 
 ## Handler response
 
@@ -251,6 +250,22 @@ a.Post("/user", func(body io.Reader) error {
     return nil
 },
     smartapi.BodyReader(),
+)
+```
+
+### Response Writer
+
+Classic `http.ResponseWriter` can be used as well.
+
+```go
+a.Post("/user", func(w http.ResponseWriter) error {
+    _, err := w.Write([]byte("RESPONSE"))
+    if err != nil {
+        return err
+    }
+    return nil
+},
+    smartapi.ResponseWriter(),
 )
 ```
 

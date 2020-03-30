@@ -21,10 +21,11 @@ const (
 	flagResponseStatus
 	flagMiddleware
 	flagReadsRequestBody
+	flagWritesResponse
 )
 
 func (e endpointOptions) has(o endpointOptions) bool {
-	return e & o != 0
+	return e&o != 0
 }
 
 // EndpointParam is used with endpoint definition
@@ -383,6 +384,29 @@ func (c cookieSetterArgument) getValue(w http.ResponseWriter, r *http.Request) (
 // ResponseCookies passes an interface to set cookie values
 func ResponseCookies() EndpointParam {
 	return cookieSetterArgument{}
+}
+
+type responseWriterArgument struct{}
+
+var responseWriterType = reflect.TypeOf((*http.ResponseWriter)(nil)).Elem()
+
+func (responseWriterArgument) checkArg(arg reflect.Type) error {
+	if arg != responseWriterType {
+		return errors.New("argument's type must be http.ResponseWriter")
+	}
+	return nil
+}
+
+func (responseWriterArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
+	return reflect.ValueOf(w), nil
+}
+
+func (responseWriterArgument) options() endpointOptions {
+	return flagArgument | flagWritesResponse
+}
+
+func ResponseWriter() EndpointParam {
+	return responseWriterArgument{}
 }
 
 type middleware struct {

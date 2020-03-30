@@ -67,6 +67,21 @@ func handleError(ctx context.Context, w http.ResponseWriter, logger Logger, err 
 	})
 }
 
+type noResponseHandler struct {
+	handlerFunc interface{}
+}
+
+func (e noResponseHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint) {
+	attribs, err := getCallAttributes(w, r, endpoint)
+	if err != nil {
+		handleError(r.Context(), w, logger, err)
+		return
+	}
+	value := reflect.ValueOf(e.handlerFunc)
+	value.Call(attribs)
+	w.WriteHeader(endpoint.returnStatus)
+}
+
 type errorOnlyHandler struct {
 	handlerFunc interface{}
 }
