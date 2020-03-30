@@ -90,8 +90,8 @@ func newAPI(service Service) *smartapi.Server {
 		smartapi.JSONBody(User{}),
 	)
 	api.Post("/user/auth", service.Auth,
-		smartapi.QueryParam("login"),
-		smartapi.QueryParam("password"),
+		smartapi.PostQueryParam("login"),
+		smartapi.PostQueryParam("password"),
 	)
 	api.Get("/user", service.GetUserData,
 		smartapi.Header("X-Session-ID"),
