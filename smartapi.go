@@ -25,6 +25,10 @@ const (
 	methodPatch
 	methodDelete
 	methodPut
+	methodOptions
+	methodConnect
+	methodHead
+	methodTrace
 )
 
 type defaultLogger struct{}

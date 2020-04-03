@@ -1471,6 +1471,74 @@ func TestMethods(t *testing.T) {
 			responseCode: http.StatusNoContent,
 			responseBody: nil,
 		},
+		{
+			name: "HEAD",
+			request: func() *http.Request {
+				request, err := http.NewRequest("HEAD", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Head("/test", func() error {
+					return nil
+				})
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "OPTIONS",
+			request: func() *http.Request {
+				request, err := http.NewRequest("OPTIONS", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Options("/test", func() error {
+					return nil
+				})
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "CONNECT",
+			request: func() *http.Request {
+				request, err := http.NewRequest("CONNECT", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Connect("/test", func() error {
+					return nil
+				})
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "TRACE",
+			request: func() *http.Request {
+				request, err := http.NewRequest("TRACE", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Trace("/test", func() error {
+					return nil
+				})
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

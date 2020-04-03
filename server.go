@@ -187,6 +187,26 @@ func (s *Server) Delete(pattern string, handler interface{}, args ...EndpointPar
 	s.addEndpoint(methodDelete, pattern, handler, args)
 }
 
+// Head adds an endpoint with a HEAD method
+func (s *Server) Head(pattern string, handler interface{}, args ...EndpointParam) {
+	s.addEndpoint(methodHead, pattern, handler, args)
+}
+
+// Options adds an endpoint with a OPTIONS method
+func (s *Server) Options(pattern string, handler interface{}, args ...EndpointParam) {
+	s.addEndpoint(methodOptions, pattern, handler, args)
+}
+
+// Connect adds an endpoint with a CONNECT method
+func (s *Server) Connect(pattern string, handler interface{}, args ...EndpointParam) {
+	s.addEndpoint(methodConnect, pattern, handler, args)
+}
+
+// Trace adds an endpoint with a TRACE method
+func (s *Server) Trace(pattern string, handler interface{}, args ...EndpointParam) {
+	s.addEndpoint(methodTrace, pattern, handler, args)
+}
+
 // Handler returns an http.Handler of the API
 func (s *Server) Handler() (http.Handler, error) {
 	r := chi.NewRouter()
@@ -228,6 +248,14 @@ func (s *Server) Handler() (http.Handler, error) {
 			router.Put(e.name, f)
 		case methodDelete:
 			router.Delete(e.name, f)
+		case methodHead:
+			router.Head(e.name, f)
+		case methodConnect:
+			router.Connect(e.name, f)
+		case methodOptions:
+			router.Options(e.name, f)
+		case methodTrace:
+			router.Trace(e.name, f)
 		}
 	}
 
