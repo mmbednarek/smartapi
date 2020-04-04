@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -251,6 +252,147 @@ func TestAttributes(t *testing.T) {
 			},
 			responseCode: http.StatusNoContent,
 			responseBody: nil,
+		},
+		{
+			name: "Full Legacy 1",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", strings.NewReader("test"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(w http.ResponseWriter, r *http.Request) {
+					buff, err := ioutil.ReadAll(r.Body)
+					require.NoError(t, err)
+					w.WriteHeader(http.StatusMultiStatus)
+					_, err = fmt.Fprintf(w, "response to %s!", buff)
+					require.NoError(t, err)
+				})
+			},
+			responseCode: http.StatusMultiStatus,
+			responseBody: []byte("response to test!"),
+		},
+		{
+			name: "Full Legacy 2",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", strings.NewReader("test"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				f := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					buff, err := ioutil.ReadAll(r.Body)
+					require.NoError(t, err)
+					w.WriteHeader(http.StatusMultiStatus)
+					_, err = fmt.Fprintf(w, "response to %s!", buff)
+					require.NoError(t, err)
+				})
+				api.Post("/test", f)
+			},
+			responseCode: http.StatusMultiStatus,
+			responseBody: []byte("response to test!"),
+		},
+		{
+			name: "Full Legacy 3",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", strings.NewReader("test"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(w http.ResponseWriter, r *http.Request) {
+					buff, err := ioutil.ReadAll(r.Body)
+					require.NoError(t, err)
+					w.WriteHeader(http.StatusMultiStatus)
+					_, err = fmt.Fprintf(w, "response to %s!", buff)
+					require.NoError(t, err)
+				},
+					smartapi.ResponseWriter(),
+					smartapi.Request(),
+				)
+			},
+			responseCode: http.StatusMultiStatus,
+			responseBody: []byte("response to test!"),
+		},
+		{
+			name: "Full Legacy With Error ok",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", strings.NewReader("test"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(w http.ResponseWriter, r *http.Request) error {
+					buff, err := ioutil.ReadAll(r.Body)
+					if err != nil {
+						return err
+					}
+					_, err = fmt.Fprintf(w, "response to %s!", buff)
+					if err != nil {
+						return err
+					}
+					return nil
+				},
+					smartapi.ResponseWriter(),
+					smartapi.Request(),
+				)
+			},
+			responseCode: http.StatusOK,
+			responseBody: []byte("response to test!"),
+		},
+		{
+			name: "Legacy check fails with response code",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", strings.NewReader("test"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(w http.ResponseWriter, r *http.Request) {
+					buff, err := ioutil.ReadAll(r.Body)
+					require.NoError(t, err)
+					require.Equal(t, "test", string(buff))
+				},
+					smartapi.ResponseWriter(),
+					smartapi.Request(),
+					smartapi.ResponseStatus(http.StatusAccepted),
+				)
+			},
+			responseCode: http.StatusAccepted,
+			responseBody: nil,
+		},
+		{
+			name: "Legacy check fails with wrong second argument",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", strings.NewReader("test"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				request.Header.Set("X-Test", "test")
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(w http.ResponseWriter, header string) {
+					w.WriteHeader(http.StatusForbidden)
+					_, err := fmt.Fprintf(w, "header value: %s!", header)
+					require.NoError(t, err)
+				},
+					smartapi.ResponseWriter(),
+					smartapi.Header("X-Test"),
+				)
+			},
+			responseCode: http.StatusForbidden,
+			responseBody: []byte("header value: test!"),
 		},
 		{
 			name: "Middleware",
@@ -1250,6 +1392,19 @@ func TestHandlersErrors(t *testing.T) {
 				)
 			},
 			expect: errors.New("endpoint /test: argument's type must be *http.Request"),
+		},
+		{
+			name: "Legacy check fails with response code",
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(w http.ResponseWriter, r *http.Request) {
+					buff, err := ioutil.ReadAll(r.Body)
+					require.NoError(t, err)
+					require.Equal(t, "test", string(buff))
+				},
+					smartapi.ResponseStatus(http.StatusAccepted),
+				)
+			},
+			expect: errors.New("endpoint /test: number of arguments of a function doesn't match provided arguments"),
 		},
 		{
 			name: "Required header wrong type",

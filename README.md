@@ -116,7 +116,13 @@ func main() {
 Planned features that will be added really soon.
 
 + Routing
-+ Support for legacy handlers
++ Struct argument with request data passed into fields by tags
+
+## Support for legacy handlers
+
+Legacy handlers are supported with no overhead.
+They are directly passed as ordinary handler functions.
+No additional variadic arguments are required for legacy handler to be used.
 
 ## Handler response
 
