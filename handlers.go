@@ -229,3 +229,13 @@ func (b byteSliceErrorHandler) handleRequest(w http.ResponseWriter, r *http.Requ
 		return
 	}
 }
+
+type legacyHandler struct {
+	handlerFunc http.HandlerFunc
+}
+
+func (l legacyHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint) {
+	l.handlerFunc(w, r) // this should not be reached, left as naive implementation.
+}
+
+

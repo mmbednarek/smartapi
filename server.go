@@ -17,6 +17,7 @@ type endpoint struct {
 	returnStatus int
 	query        bool
 	cookies      bool
+	legacy       bool
 	middlewares  []func(http.Handler) http.Handler
 }
 
@@ -102,8 +103,40 @@ func checkHandler(handlerFunc interface{}, arguments []Argument, writesResponse 
 	return nil, errors.New("invalid number of return arguments")
 }
 
+func isLegacyHandler(returnStatus int, args []Argument, handler interface{}) (http.HandlerFunc, bool) {
+	switch len(args) {
+	case 2:
+		_, ok := args[0].(responseWriterArgument)
+		if !ok {
+			return nil, false
+		}
+
+		_, ok = args[1].(fullRequestArgument)
+		if !ok {
+			return nil, false
+		}
+
+		if returnStatus != 200 {
+			return nil, false
+		}
+	case 0:
+		if returnStatus != 0 {
+			return nil, false
+		}
+	default:
+		return nil, false
+	}
+
+	if h, ok := handler.(http.HandlerFunc); ok {
+		return h, ok
+	}
+
+	h, ok := handler.(func(w http.ResponseWriter, h *http.Request))
+	return h, ok
+}
+
 func (s *Server) addEndpoint(method method, name string, handler interface{}, args []EndpointParam) {
-	returnStatus := http.StatusNoContent
+	returnStatus := 0
 	query := false
 	writesResponse := false
 	numReadsBody := 0
@@ -129,8 +162,29 @@ func (s *Server) addEndpoint(method method, name string, handler interface{}, ar
 		}
 		if flags.has(flagWritesResponse) {
 			writesResponse = true
-			returnStatus = http.StatusOK
+			if returnStatus == 0 {
+				returnStatus = http.StatusOK
+			}
 		}
+	}
+
+	if h, ok := isLegacyHandler(returnStatus, params, handler); ok {
+		s.endpoints = append(s.endpoints, endpoint{
+			name:         name,
+			method:       method,
+			arguments:    nil,
+			handler:      legacyHandler{handlerFunc: h},
+			returnStatus: 0,
+			query:        false,
+			cookies:      false,
+			legacy:       true,
+			middlewares:  middlewares,
+		})
+		return 
+	}
+
+	if returnStatus == 0 {
+		returnStatus = http.StatusNoContent
 	}
 
 	if numReadsBody > 1 {
@@ -154,6 +208,7 @@ func (s *Server) addEndpoint(method method, name string, handler interface{}, ar
 		returnStatus: returnStatus,
 		query:        query,
 		middlewares:  middlewares,
+		legacy:       false,
 	})
 }
 
@@ -227,11 +282,16 @@ func (s *Server) Handler() (http.Handler, error) {
 	}
 
 	for _, e := range s.endpoints {
-		f := func(e endpoint) http.HandlerFunc {
-			return func(w http.ResponseWriter, r *http.Request) {
-				e.handler.handleRequest(w, r, s.logger, e)
-			}
-		}(e)
+		var f http.HandlerFunc
+		if e.legacy {
+			f = e.handler.(legacyHandler).handlerFunc
+		} else {
+			f = func(e endpoint) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					e.handler.handleRequest(w, r, s.logger, e)
+				}
+			}(e)
+		}
 
 		if len(e.middlewares) > 0 {
 			router = router.With(e.middlewares...)
