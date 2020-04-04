@@ -409,6 +409,29 @@ func ResponseWriter() EndpointParam {
 	return responseWriterArgument{}
 }
 
+type fullRequest struct {}
+
+var fullRequestType = reflect.TypeOf(&http.Request{})
+
+func (fullRequest) options() endpointOptions {
+	return flagArgument | flagReadsRequestBody
+}
+
+func (fullRequest) checkArg(arg reflect.Type) error {
+	if arg != fullRequestType {
+		return errors.New("argument's type must be *http.Request")
+	}
+	return nil
+}
+
+func (fullRequest) getValue(_ http.ResponseWriter, r *http.Request) (reflect.Value, error) {
+	return reflect.ValueOf(r), nil
+}
+
+func Request() EndpointParam {
+	return fullRequest{}
+}
+
 type middleware struct {
 	middlewares []func(http.Handler) http.Handler
 }
