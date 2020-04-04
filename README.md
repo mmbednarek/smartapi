@@ -269,6 +269,23 @@ a.Post("/user", func(w http.ResponseWriter) error {
 )
 ```
 
+### Request
+
+Classic `*http.Request` can be passed as an argument.
+
+```go
+a.Post("/user", func(r *http.Request) error {
+    buff, err := ioutil.ReadAll(r.Body)
+    if err != nil {
+        return err
+    }
+    fmt.Printf("Request body is: %s\n", string(buff))
+    return nil
+},
+    smartapi.Request(),
+)
+```
+
 ### Query param
 
 Query param reads the value of the selected param and passes it as a string to function.

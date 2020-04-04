@@ -5,9 +5,11 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -223,6 +225,28 @@ func TestAttributes(t *testing.T) {
 					return nil
 				},
 					smartapi.Context(),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "Full Request",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", strings.NewReader("test"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(r *http.Request) error {
+					buff, err := ioutil.ReadAll(r.Body)
+					require.NoError(t, err)
+					require.Equal(t, `test`, string(buff))
+					return nil
+				},
+					smartapi.Request(),
 				)
 			},
 			responseCode: http.StatusNoContent,
@@ -1215,6 +1239,17 @@ func TestHandlersErrors(t *testing.T) {
 				)
 			},
 			expect: errors.New("endpoint /test: expected a string type"),
+		},
+		{
+			name: "Full Request Wrong Type",
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(r int) error {
+					return nil
+				},
+					smartapi.Request(),
+				)
+			},
+			expect: errors.New("endpoint /test: argument's type must be *http.Request"),
 		},
 		{
 			name: "Required header wrong type",
