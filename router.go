@@ -10,23 +10,28 @@ import (
 )
 
 type Router interface {
+	Use(middlewares ...func(http.Handler) http.Handler)
+	With(middlewares ...func(http.Handler) http.Handler) Router
+	AddEndpoint(method Method, pattern string, handler interface{}, args []EndpointParam)
 	Post(pattern string, handler interface{}, args ...EndpointParam)
 	Get(pattern string, handler interface{}, args ...EndpointParam)
-}
-
-type route struct {
-	pattern string
-	node    *routeNode
+	Put(pattern string, handler interface{}, args ...EndpointParam)
+	Patch(pattern string, handler interface{}, args ...EndpointParam)
+	Delete(pattern string, handler interface{}, args ...EndpointParam)
+	Head(pattern string, handler interface{}, args ...EndpointParam)
+	Options(pattern string, handler interface{}, args ...EndpointParam)
+	Connect(pattern string, handler interface{}, args ...EndpointParam)
+	Trace(pattern string, handler interface{}, args ...EndpointParam)
+	Route(pattern string, handler RouteHandler, args ...EndpointParam)
 }
 
 type RouteHandler func(r Router)
 
-type routeNode struct {
-	errors      []error
-	endpoints   []endpoint
-	logger      Logger
-	middlewares []func(http.Handler) http.Handler
-	subRoutes   []route
+type router struct {
+	chiRouter chi.Router
+	errors    []error
+	logger    Logger
+	params    []EndpointParam
 }
 
 var errType = reflect.TypeOf((*error)(nil)).Elem()
@@ -121,27 +126,24 @@ func isLegacyHandler(returnStatus int, args []Argument, handler interface{}) (ht
 	return h, ok
 }
 
-func (r *routeNode) addEndpoint(method method, name string, handler interface{}, args []EndpointParam) {
+func (r *router) AddEndpoint(method Method, name string, handler interface{}, params []EndpointParam) {
 	returnStatus := 0
 	query := false
 	writesResponse := false
 	numReadsBody := 0
 
-	var params []Argument
-	var middlewares []func(http.Handler) http.Handler
-	for i, a := range args {
+	joinedParams := append(r.params, params...)
+	var args []Argument
+	for i, a := range joinedParams {
 		flags := a.options()
 		if flags.has(flagArgument) {
-			params = append(params, a.(Argument))
+			args = append(args, a.(Argument))
 		}
 		if flags.has(flagParsesQuery) {
 			query = true
 		}
 		if flags.has(flagResponseStatus) {
 			returnStatus = a.(responseStatusArgument).status
-		}
-		if flags.has(flagMiddleware) {
-			middlewares = append(middlewares, a.(middleware).middlewares...)
 		}
 		if flags.has(flagReadsRequestBody) {
 			numReadsBody++
@@ -158,18 +160,8 @@ func (r *routeNode) addEndpoint(method method, name string, handler interface{},
 		}
 	}
 
-	if h, ok := isLegacyHandler(returnStatus, params, handler); ok {
-		r.endpoints = append(r.endpoints, endpoint{
-			name:         name,
-			method:       method,
-			arguments:    nil,
-			handler:      legacyHandler{handlerFunc: h},
-			returnStatus: 0,
-			query:        false,
-			cookies:      false,
-			legacy:       true,
-			middlewares:  middlewares,
-		})
+	if h, ok := isLegacyHandler(returnStatus, args, handler); ok {
+		r.chiRouter.MethodFunc(method.String(), name, h)
 		return
 	}
 
@@ -181,7 +173,7 @@ func (r *routeNode) addEndpoint(method method, name string, handler interface{},
 		r.errors = append(r.errors, fmt.Errorf("endpoint %s: only one argument can read request's body", name))
 	}
 
-	endpointHandler, err := checkHandler(handler, params, writesResponse)
+	endpointHandler, err := checkHandler(handler, args, writesResponse)
 	if err != nil {
 		r.errors = append(r.errors, fmt.Errorf("endpoint %s: %w", name, err))
 	}
@@ -190,124 +182,93 @@ func (r *routeNode) addEndpoint(method method, name string, handler interface{},
 		return
 	}
 
-	r.endpoints = append(r.endpoints, endpoint{
-		name:         name,
-		arguments:    params,
-		handler:      endpointHandler,
-		method:       method,
+	data := endpointData{
+		arguments:    args,
 		returnStatus: returnStatus,
 		query:        query,
-		middlewares:  middlewares,
-		legacy:       false,
-	})
+	}
+
+	f := func(w http.ResponseWriter, rq *http.Request) {
+		endpointHandler.handleRequest(w, rq, r.logger, data)
+	}
+
+	r.chiRouter.MethodFunc(method.String(), name, f)
 }
 
-// With adds chi middlewares
-func (r *routeNode) Use(middlewares ...func(http.Handler) http.Handler) {
-	r.middlewares = append(r.middlewares, middlewares...)
+// Use adds chi middlewares
+func (r *router) Use(middlewares ...func(http.Handler) http.Handler) {
+	r.chiRouter.Use(middlewares...)
 }
 
-// Post adds an endpoint with a POST method
-func (r *routeNode) Post(pattern string, handler interface{}, args ...EndpointParam) {
-	r.addEndpoint(methodPost, pattern, handler, args)
+// With returns a version of a handler with a middleware
+func (r *router) With(middlewares ...func(http.Handler) http.Handler) Router {
+	return &router{
+		chiRouter: r.chiRouter.With(middlewares...),
+		errors:    r.errors,
+		logger:    r.logger,
+	}
 }
 
-// Get adds an endpoint with a GET method
-func (r *routeNode) Get(pattern string, handler interface{}, args ...EndpointParam) {
-	r.addEndpoint(methodGet, pattern, handler, args)
+// Post adds an endpoint with a POST Method
+func (r *router) Post(pattern string, handler interface{}, args ...EndpointParam) {
+	r.AddEndpoint(MethodPost, pattern, handler, args)
 }
 
-// Put adds an endpoint with a PUT method
-func (r *routeNode) Put(pattern string, handler interface{}, args ...EndpointParam) {
-	r.addEndpoint(methodPut, pattern, handler, args)
+// Get adds an endpoint with a GET Method
+func (r *router) Get(pattern string, handler interface{}, args ...EndpointParam) {
+	r.AddEndpoint(MethodGet, pattern, handler, args)
 }
 
-// Patch adds an endpoint with a PATCH method
-func (r *routeNode) Patch(pattern string, handler interface{}, args ...EndpointParam) {
-	r.addEndpoint(methodPatch, pattern, handler, args)
+// Put adds an endpoint with a PUT Method
+func (r *router) Put(pattern string, handler interface{}, args ...EndpointParam) {
+	r.AddEndpoint(MethodPut, pattern, handler, args)
 }
 
-// Delete adds an endpoint with a DELETE method
-func (r *routeNode) Delete(pattern string, handler interface{}, args ...EndpointParam) {
-	r.addEndpoint(methodDelete, pattern, handler, args)
+// Patch adds an endpoint with a PATCH Method
+func (r *router) Patch(pattern string, handler interface{}, args ...EndpointParam) {
+	r.AddEndpoint(MethodPatch, pattern, handler, args)
 }
 
-// Head adds an endpoint with a HEAD method
-func (r *routeNode) Head(pattern string, handler interface{}, args ...EndpointParam) {
-	r.addEndpoint(methodHead, pattern, handler, args)
+// Delete adds an endpoint with a DELETE Method
+func (r *router) Delete(pattern string, handler interface{}, args ...EndpointParam) {
+	r.AddEndpoint(MethodDelete, pattern, handler, args)
 }
 
-// Options adds an endpoint with a OPTIONS method
-func (r *routeNode) Options(pattern string, handler interface{}, args ...EndpointParam) {
-	r.addEndpoint(methodOptions, pattern, handler, args)
+// Head adds an endpoint with a HEAD Method
+func (r *router) Head(pattern string, handler interface{}, args ...EndpointParam) {
+	r.AddEndpoint(MethodHead, pattern, handler, args)
 }
 
-// Connect adds an endpoint with a CONNECT method
-func (r *routeNode) Connect(pattern string, handler interface{}, args ...EndpointParam) {
-	r.addEndpoint(methodConnect, pattern, handler, args)
+// Options adds an endpoint with a OPTIONS Method
+func (r *router) Options(pattern string, handler interface{}, args ...EndpointParam) {
+	r.AddEndpoint(MethodOptions, pattern, handler, args)
 }
 
-// Trace adds an endpoint with a TRACE method
-func (r *routeNode) Trace(pattern string, handler interface{}, args ...EndpointParam) {
-	r.addEndpoint(methodTrace, pattern, handler, args)
+// Connect adds an endpoint with a CONNECT Method
+func (r *router) Connect(pattern string, handler interface{}, args ...EndpointParam) {
+	r.AddEndpoint(MethodConnect, pattern, handler, args)
 }
 
-// Handler returns an http.Handler of the API
-func (r *routeNode) chiRouter(router chi.Router) error {
-	if len(r.errors) != 0 {
-		errMsg := r.errors[0].Error()
-		for _, e := range r.errors[1:] {
-			errMsg += ", " + e.Error()
+// Trace adds an endpoint with a TRACE Method
+func (r *router) Trace(pattern string, handler interface{}, args ...EndpointParam) {
+	r.AddEndpoint(MethodTrace, pattern, handler, args)
+}
+
+// Route routs endpoints to a specific path
+func (r *router) Route(pattern string, handler RouteHandler, params ...EndpointParam) {
+	if handler == nil {
+		r.errors = append(r.errors, fmt.Errorf("route %s: nil handler", pattern))
+		return
+	}
+	r.chiRouter.Route(pattern, func(rt chi.Router) {
+		node := &router{
+			logger:    r.logger,
+			chiRouter: rt,
+			params:    append(r.params, params...),
 		}
-		return errors.New(errMsg)
-	}
-
-	if len(r.middlewares) > 0 {
-		router.Use(r.middlewares...)
-	}
-
-	for _, subRoute := range r.subRoutes {
-		var err error
-		router.Route(subRoute.pattern, func(router chi.Router) {
-			err = subRoute.node.chiRouter(router)
-		})
-		if err != nil {
-			return err
+		handler(node)
+		for _, err := range node.errors {
+			r.errors = append(r.errors, fmt.Errorf("route %s: %w", pattern, err))
 		}
-	}
-
-	for _, e := range r.endpoints {
-		var f http.HandlerFunc
-		if e.legacy {
-			f = e.handler.(legacyHandler).handlerFunc
-		} else {
-			f = func(e endpoint) http.HandlerFunc {
-				return func(w http.ResponseWriter, rq *http.Request) {
-					e.handler.handleRequest(w, rq, r.logger, e)
-				}
-			}(e)
-		}
-		var subRouter chi.Router
-		if len(e.middlewares) > 0 {
-			subRouter = router.With(e.middlewares...)
-		} else {
-			subRouter = router
-		}
-		subRouter.MethodFunc(e.method.String(), e.name, f)
-	}
-
-	return nil
-}
-
-func (r *routeNode) Route(pattern string, rh RouteHandler, args ...EndpointParam) {
-	node := &routeNode{
-		logger: r.logger,
-	}
-	if rh != nil {
-		rh(node)
-	}
-	r.subRoutes = append(r.subRoutes, route{
-		pattern: pattern,
-		node:    node,
 	})
 }

@@ -1,27 +1,22 @@
 package smartapi
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi"
 )
 
-type endpoint struct {
-	name         string
-	method       method
+type endpointData struct {
 	arguments    []Argument
-	handler      endpointHandler
 	returnStatus int
 	query        bool
-	cookies      bool
-	legacy       bool
-	middlewares  []func(http.Handler) http.Handler
 }
 
 // Server handles http endpoints
 type Server struct {
-	routeNode
+	router
 }
 
 // StartAPI starts a user defined API
@@ -36,19 +31,23 @@ func StartAPI(a API, address string) error {
 // NewServer constructs a server
 func NewServer(logger Logger) *Server {
 	return &Server{
-		routeNode: routeNode{
-			logger: logger,
+		router: router{
+			chiRouter: chi.NewRouter(),
+			logger:    logger,
 		},
 	}
 }
 
 // Handler returns an http.Handler of the API
 func (s *Server) Handler() (http.Handler, error) {
-	r := chi.NewRouter()
-	if err := s.chiRouter(r); err != nil {
-		return nil, err
+	if len(s.errors) != 0 {
+		errMsg := s.errors[0].Error()
+		for _, e := range s.errors[1:] {
+			errMsg += ", " + e.Error()
+		}
+		return nil, errors.New(errMsg)
 	}
-	return r, nil
+	return s.router.chiRouter, nil
 }
 
 // Start starts the api

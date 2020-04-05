@@ -19,7 +19,6 @@ const (
 	flagArgument endpointOptions = 1 << iota
 	flagParsesQuery
 	flagResponseStatus
-	flagMiddleware
 	flagReadsRequestBody
 	flagWritesResponse
 	flagError
@@ -29,7 +28,7 @@ func (e endpointOptions) has(o endpointOptions) bool {
 	return e&o != 0
 }
 
-// EndpointParam is used with endpoint definition
+// EndpointParam is used with endpointData definition
 type EndpointParam interface {
 	options() endpointOptions
 }
@@ -683,17 +682,4 @@ func RequestStruct(s interface{}) EndpointParam {
 		return errorEndpointParam{err: err}
 	}
 	return reqStruct
-}
-
-type middleware struct {
-	middlewares []func(http.Handler) http.Handler
-}
-
-func (middleware) options() endpointOptions {
-	return flagMiddleware
-}
-
-// Middleware allows to use chi middlewares
-func Middleware(m ...func(http.Handler) http.Handler) EndpointParam {
-	return middleware{middlewares: m}
 }

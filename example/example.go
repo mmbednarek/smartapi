@@ -48,16 +48,18 @@ type Order struct {
 
 // Init inits the api
 func (a *API) Init() {
-	a.Get("/user", a.GetUser,
+	a.With(middleware.DefaultLogger).Route("/user", func(r smartapi.Router) {
+		r.Get("/", a.GetUser,
+			smartapi.QueryParam("user"),
+		)
+
+		r.Post("/{user}", a.NewUser,
+			smartapi.URLParam("user"),
+			smartapi.JSONBody(UserData{}),
+			smartapi.ResponseStatus(http.StatusCreated),
+		)
+	},
 		smartapi.Context(),
-		smartapi.QueryParam("user"),
-	)
-
-	a.Post("/user/{user}", a.NewUser,
-		smartapi.URLParam("user"),
-		smartapi.JSONBody(UserData{}),
-
-		smartapi.ResponseStatus(http.StatusCreated),
 	)
 
 	a.Get("/test", func(name string, cookies smartapi.Cookies, headers smartapi.Headers) error {
@@ -70,22 +72,6 @@ func (a *API) Init() {
 		smartapi.Cookie("Session"),
 		smartapi.ResponseCookies(),
 		smartapi.ResponseHeaders(),
-		smartapi.Middleware(middleware.DefaultLogger),
-	)
-
-	a.Get("/order/{id}", func(orderID string) (*Order, error) {
-		var order *Order
-		ErrNoSuchOrder := errors.New("no such order")
-		err := ErrNoSuchOrder
-		if err != nil {
-			if errors.Is(err, ErrNoSuchOrder) {
-				return nil, smartapi.WrapError(http.StatusNotFound, err, "no such order")
-			}
-			return nil, err
-		}
-		return order, nil
-	},
-		smartapi.URLParam("id"),
 	)
 }
 
@@ -102,7 +88,7 @@ func (a *API) GetUser(ctx context.Context, name string) (*UserData, error) {
 }
 
 // NewUser handles the POST user endpoint
-func (a *API) NewUser(userID string, userData *UserData) error {
+func (a *API) NewUser(ctx context.Context, userID string, userData *UserData) error {
 	if err := a.storage.StoreUser(userID, userData); err != nil {
 		if errors.Is(err, ErrUserAlreadyExists) {
 			return smartapi.WrapError(http.StatusBadRequest, err, "user already exists")

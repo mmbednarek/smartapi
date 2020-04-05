@@ -9,10 +9,10 @@ import (
 )
 
 type endpointHandler interface {
-	handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint)
+	handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpointData)
 }
 
-func getCallAttributes(w http.ResponseWriter, r *http.Request, endpoint endpoint) ([]reflect.Value, error) {
+func getCallAttributes(w http.ResponseWriter, r *http.Request, endpoint endpointData) ([]reflect.Value, error) {
 	if endpoint.query {
 		if err := r.ParseForm(); err != nil {
 			return nil, WrapError(http.StatusBadRequest, err, "could not parse form")
@@ -71,7 +71,7 @@ type noResponseHandler struct {
 	handlerFunc interface{}
 }
 
-func (e noResponseHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint) {
+func (e noResponseHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpointData) {
 	attribs, err := getCallAttributes(w, r, endpoint)
 	if err != nil {
 		handleError(r.Context(), w, logger, err)
@@ -86,7 +86,7 @@ type errorOnlyHandler struct {
 	handlerFunc interface{}
 }
 
-func (e errorOnlyHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint) {
+func (e errorOnlyHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpointData) {
 	attribs, err := getCallAttributes(w, r, endpoint)
 	if err != nil {
 		handleError(r.Context(), w, logger, err)
@@ -109,7 +109,7 @@ type ptrErrorHandler struct {
 	handlerFunc interface{}
 }
 
-func (e ptrErrorHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint) {
+func (e ptrErrorHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpointData) {
 	attribs, err := getCallAttributes(w, r, endpoint)
 	if err != nil {
 		handleError(r.Context(), w, logger, err)
@@ -141,7 +141,7 @@ type structErrorHandler struct {
 	handlerFunc interface{}
 }
 
-func (s structErrorHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint) {
+func (s structErrorHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpointData) {
 	attribs, err := getCallAttributes(w, r, endpoint)
 	if err != nil {
 		handleError(r.Context(), w, logger, err)
@@ -168,7 +168,7 @@ type stringErrorHandler struct {
 	handlerFunc interface{}
 }
 
-func (s stringErrorHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint) {
+func (s stringErrorHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpointData) {
 	attribs, err := getCallAttributes(w, r, endpoint)
 	if err != nil {
 		handleError(r.Context(), w, logger, err)
@@ -201,7 +201,7 @@ type byteSliceErrorHandler struct {
 	handlerFunc interface{}
 }
 
-func (b byteSliceErrorHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint) {
+func (b byteSliceErrorHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpointData) {
 	attribs, err := getCallAttributes(w, r, endpoint)
 	if err != nil {
 		handleError(r.Context(), w, logger, err)
@@ -228,12 +228,4 @@ func (b byteSliceErrorHandler) handleRequest(w http.ResponseWriter, r *http.Requ
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-}
-
-type legacyHandler struct {
-	handlerFunc http.HandlerFunc
-}
-
-func (l legacyHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpoint) {
-	l.handlerFunc(w, r) // this should not be reached, left as naive implementation.
 }
