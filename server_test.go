@@ -445,12 +445,13 @@ func TestAttributes(t *testing.T) {
 		{
 			name: "Tag Struct",
 			request: func() *http.Request {
-				request, err := http.NewRequest("POST", "/test/url?param=query&other_param=other_query", nil)
+				request, err := http.NewRequest("POST", "/test/url?param=query&other_param=other_query&rparam=rquery", nil)
 				if err != nil {
 					t.Fatal(err)
 				}
 				request.PostForm = url.Values{}
 				request.PostForm.Set("post_param", "postquery")
+				request.PostForm.Set("rpost_param", "rpostquery")
 				request.Header.Set("X-Example", "header")
 				request.Header.Set("X-Req-Example", "req_header")
 				request.Header.Set("X-Another-Example", "other_header")
@@ -459,19 +460,21 @@ func TestAttributes(t *testing.T) {
 			},
 			api: func(api *smartapi.Server) {
 				type exampleStruct struct {
-					Header         string          `smartapi:"header=X-Example"`
-					RequiredHeader string          `smartapi:"r_header=X-Req-Example"`
-					Ctx            context.Context `smartapi:"context"`
-					URLParam       string          `smartapi:"url_param=param"`
-					Fill           int
-					QueryParam     string `smartapi:"query_param=param"`
-					PostQueryParam string `smartapi:"post_query_param=post_param"`
-					AnotherFill    int
-					Cookie         string              `smartapi:"cookie=User-Agent"`
-					Headers        smartapi.Headers    `smartapi:"response_headers"`
-					Cookies        smartapi.Cookies    `smartapi:"response_cookies"`
-					Response       http.ResponseWriter `smartapi:"response_writer"`
-					RequestStruct  struct {
+					Header          string              `smartapi:"header=X-Example"`
+					RequiredHeader  string              `smartapi:"r_header=X-Req-Example"`
+					Ctx             context.Context     `smartapi:"context"`
+					URLParam        string              `smartapi:"url_param=param"`
+					Fill            int                 ``
+					QueryParam      string              `smartapi:"query_param=param"`
+					RQueryParam     string              `smartapi:"r_query_param=rparam"`
+					PostQueryParam  string              `smartapi:"post_query_param=post_param"`
+					RPostQueryParam string              `smartapi:"r_post_query_param=rpost_param"`
+					AnotherFill     int                 ``
+					Cookie          string              `smartapi:"cookie=User-Agent"`
+					Headers         smartapi.Headers    `smartapi:"response_headers"`
+					Cookies         smartapi.Cookies    `smartapi:"response_cookies"`
+					Response        http.ResponseWriter `smartapi:"response_writer"`
+					RequestStruct   struct {
 						AnotherHeader string `smartapi:"header=X-Another-Example"`
 					} `smartapi:"request_struct"`
 					RequestPtr *struct {
@@ -484,7 +487,9 @@ func TestAttributes(t *testing.T) {
 					require.NotNil(t, es.Ctx)
 					require.Equal(t, "url", es.URLParam)
 					require.Equal(t, "query", es.QueryParam)
+					require.Equal(t, "rquery", es.RQueryParam)
 					require.Equal(t, "postquery", es.PostQueryParam)
+					require.Equal(t, "rpostquery", es.RPostQueryParam)
 					require.Equal(t, "Mozilla/5.0", es.Cookie)
 					require.Equal(t, "other_header", es.RequestStruct.AnotherHeader)
 					require.Equal(t, "other_query", es.RequestPtr.AnotherQuery)
@@ -827,6 +832,48 @@ func TestAttributes(t *testing.T) {
 			responseBody: []byte(`{"status":400,"reason":"could not parse form"}` + "\n"),
 		},
 		{
+			name: "Required Query Params",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test?param2=value&param1=eulav", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func(param1, param2 string) error {
+					require.Equal(t, "eulav", param1)
+					require.Equal(t, "value", param2)
+					return nil
+				},
+					smartapi.RequiredQueryParam("param1"),
+					smartapi.RequiredQueryParam("param2"),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "Required Query Param Error",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test?param2=value", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func(param1, param2 string) error {
+					return nil
+				},
+					smartapi.RequiredQueryParam("param1"),
+					smartapi.RequiredQueryParam("param2"),
+				)
+			},
+			responseCode: http.StatusBadRequest,
+			responseBody: []byte("{\"status\":400,\"reason\":\"missing required query param param1\"}\n"),
+		},
+		{
 			name: "Post Query Params",
 			request: func() *http.Request {
 				request, err := http.NewRequest("POST", "/test", nil)
@@ -850,6 +897,53 @@ func TestAttributes(t *testing.T) {
 			},
 			responseCode: http.StatusNoContent,
 			responseBody: nil,
+		},
+		{
+			name: "Required Post Query Params",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				request.PostForm = url.Values{}
+				request.PostForm.Set("param1", "eulav")
+				request.PostForm.Set("param2", "value")
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func(param1, param2 string) error {
+					require.Equal(t, "eulav", param1)
+					require.Equal(t, "value", param2)
+					return nil
+				},
+					smartapi.RequiredPostQueryParam("param1"),
+					smartapi.RequiredPostQueryParam("param2"),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "Required Query Param Error",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				request.PostForm = url.Values{}
+				request.PostForm.Set("param2", "value")
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func(param1, param2 string) error {
+					return nil
+				},
+					smartapi.RequiredPostQueryParam("param1"),
+					smartapi.RequiredPostQueryParam("param2"),
+				)
+			},
+			responseCode: http.StatusBadRequest,
+			responseBody: []byte("{\"status\":400,\"reason\":\"missing required post query param param1\"}\n"),
 		},
 		{
 			name: "URL Params",
@@ -906,6 +1000,58 @@ func TestAttributes(t *testing.T) {
 			responseBody: nil,
 		},
 		{
+			name: "Empty Cookie",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func(c1 string) error {
+					require.Equal(t, "", c1)
+					return nil
+				},
+					smartapi.Cookie("Test1"),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "Required Cookies",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				request.AddCookie(&http.Cookie{
+					Name:  "Test1",
+					Value: "foo",
+				})
+				request.AddCookie(&http.Cookie{
+					Name:  "Test2",
+					Value: "bar",
+				})
+
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func(c1, c2 string) error {
+					require.Equal(t, "foo", c1)
+					require.Equal(t, "bar", c2)
+					return nil
+				},
+					smartapi.RequiredCookie("Test1"),
+					smartapi.RequiredCookie("Test2"),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
 			name: "Missing cookies",
 			request: func() *http.Request {
 				request, err := http.NewRequest("GET", "/test", nil)
@@ -918,7 +1064,7 @@ func TestAttributes(t *testing.T) {
 				api.Get("/test", func(cookie string) error {
 					return nil
 				},
-					smartapi.Cookie("Test1"),
+					smartapi.RequiredCookie("Test1"),
 				)
 			},
 			responseCode: http.StatusBadRequest,
@@ -1617,12 +1763,34 @@ func TestHandlersErrors(t *testing.T) {
 			expect: errors.New("endpoint /test: (argument 0) expected a string type"),
 		},
 		{
+			name: "Required QueryParam wrong type",
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func(value int) error {
+					return nil
+				},
+					smartapi.RequiredQueryParam("name"),
+				)
+			},
+			expect: errors.New("endpoint /test: (argument 0) expected a string type"),
+		},
+		{
 			name: "PostQueryParam wrong type",
 			api: func(api *smartapi.Server) {
 				api.Get("/test", func(value int) error {
 					return nil
 				},
 					smartapi.PostQueryParam("name"),
+				)
+			},
+			expect: errors.New("endpoint /test: (argument 0) expected a string type"),
+		},
+		{
+			name: "Required PostQueryParam wrong type",
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func(value int) error {
+					return nil
+				},
+					smartapi.RequiredPostQueryParam("name"),
 				)
 			},
 			expect: errors.New("endpoint /test: (argument 0) expected a string type"),
@@ -1704,6 +1872,17 @@ func TestHandlersErrors(t *testing.T) {
 					return nil
 				},
 					smartapi.Cookie("name"),
+				)
+			},
+			expect: errors.New("endpoint /test: (argument 0) expected a string type"),
+		},
+		{
+			name: "Required Cookie wrong type",
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func(value int) error {
+					return nil
+				},
+					smartapi.RequiredCookie("name"),
 				)
 			},
 			expect: errors.New("endpoint /test: (argument 0) expected a string type"),
