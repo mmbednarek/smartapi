@@ -30,6 +30,21 @@ const (
 	methodHead
 	methodTrace
 )
+func (m method) String() string {
+	return methodNames[m]
+}
+
+var methodNames = []string{
+	methodPost:    "POST",
+	methodGet:     "GET",
+	methodPatch:   "PATCH",
+	methodDelete:  "DELETE",
+	methodPut:     "PUT",
+	methodOptions: "OPTIONS",
+	methodConnect: "CONNECT",
+	methodHead:    "HEAD",
+	methodTrace:   "TRACE",
+}
 
 type defaultLogger struct{}
 

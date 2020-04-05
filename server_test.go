@@ -443,6 +443,27 @@ func TestAttributes(t *testing.T) {
 			responseBody: []byte("header value: test!"),
 		},
 		{
+			name: "Router",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/v1/user/test?test=test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Route("/v1/user", func(r smartapi.Router) {
+					r.Get("/test", func(qp string) {
+						require.Equal(t, "test", qp)
+					},
+						smartapi.QueryParam("test"),
+					)
+				})
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
 			name: "Tag Struct",
 			request: func() *http.Request {
 				request, err := http.NewRequest("POST", "/test/url?param=query&other_param=other_query&rparam=rquery", nil)
@@ -702,7 +723,7 @@ func TestAttributes(t *testing.T) {
 				return request
 			},
 			api: func(api *smartapi.Server) {
-				api.With(func(h http.Handler) http.Handler {
+				api.Use(func(h http.Handler) http.Handler {
 					return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						r.Header.Set("X-Middleware", "test")
 						h.ServeHTTP(w, r)
