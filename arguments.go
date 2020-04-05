@@ -323,6 +323,64 @@ func QueryParam(name string) EndpointParam {
 	return queryParamArgument{name: name}
 }
 
+type requiredQueryParamArgument struct {
+	name string
+}
+
+func (requiredQueryParamArgument) options() endpointOptions {
+	return flagArgument | flagParsesQuery
+}
+
+func (q requiredQueryParamArgument) checkArg(arg reflect.Type) error {
+	if arg.Kind() != reflect.String {
+		return errors.New("expected a string type")
+	}
+	return nil
+}
+
+func (q requiredQueryParamArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
+	value := r.Form.Get(q.name)
+	if len(value) == 0 {
+		m := fmt.Sprintf("missing required query param %s", q.name)
+		return reflect.Value{}, Error(http.StatusBadRequest, m, m)
+	}
+	return reflect.ValueOf(value), nil
+}
+
+// RequiredQueryParam reads a query param and passes it as a string. Returns 400 BAD REQUEST when empty
+func RequiredQueryParam(name string) EndpointParam {
+	return requiredQueryParamArgument{name: name}
+}
+
+type requiredPostQueryParamArgument struct {
+	name string
+}
+
+func (requiredPostQueryParamArgument) options() endpointOptions {
+	return flagArgument | flagParsesQuery
+}
+
+func (q requiredPostQueryParamArgument) checkArg(arg reflect.Type) error {
+	if arg.Kind() != reflect.String {
+		return errors.New("expected a string type")
+	}
+	return nil
+}
+
+func (q requiredPostQueryParamArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
+	value := r.PostForm.Get(q.name)
+	if len(value) == 0 {
+		m := fmt.Sprintf("missing required post query param %s", q.name)
+		return reflect.Value{}, Error(http.StatusBadRequest, m, m)
+	}
+	return reflect.ValueOf(value), nil
+}
+
+// RequiredPostQueryParam reads a post query param and passes it as a string. Returns 400 BAD REQUEST if empty.
+func RequiredPostQueryParam(name string) EndpointParam {
+	return requiredPostQueryParamArgument{name: name}
+}
+
 type postQueryParamArgument struct {
 	name string
 }
@@ -365,8 +423,7 @@ func (c cookieArgument) checkArg(arg reflect.Type) error {
 func (c cookieArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
 	cookie, err := r.Cookie(c.name)
 	if err != nil {
-		msg := fmt.Sprintf("missing cookie %s", c.name)
-		return reflect.Value{}, Error(http.StatusBadRequest, msg, msg)
+		return reflect.ValueOf(""), nil
 	}
 	return reflect.ValueOf(cookie.Value), nil
 }
@@ -374,6 +431,35 @@ func (c cookieArgument) getValue(w http.ResponseWriter, r *http.Request) (reflec
 // Cookie reads a cookie from the request and passes it as a string
 func Cookie(name string) EndpointParam {
 	return cookieArgument{name: name}
+}
+
+type requiredCookieArgument struct {
+	name string
+}
+
+func (requiredCookieArgument) options() endpointOptions {
+	return flagArgument
+}
+
+func (c requiredCookieArgument) checkArg(arg reflect.Type) error {
+	if arg.Kind() != reflect.String {
+		return errors.New("expected a string type")
+	}
+	return nil
+}
+
+func (c requiredCookieArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
+	cookie, err := r.Cookie(c.name)
+	if err != nil {
+		msg := fmt.Sprintf("missing cookie %s", c.name)
+		return reflect.Value{}, Error(http.StatusBadRequest, msg, msg)
+	}
+	return reflect.ValueOf(cookie.Value), nil
+}
+
+// RequiredCookie reads a cookie from the request and passes it as a string
+func RequiredCookie(name string) EndpointParam {
+	return requiredCookieArgument{name: name}
 }
 
 type headerSetterArgument struct{}

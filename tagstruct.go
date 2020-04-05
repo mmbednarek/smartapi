@@ -43,8 +43,12 @@ func getArgument(kind string, data string, field reflect.StructField) (Argument,
 		return contextArgument{}, nil
 	case "query_param":
 		return queryParamArgument{name: data}, nil
+	case "r_query_param":
+		return requiredQueryParamArgument{name: data}, nil
 	case "post_query_param":
 		return postQueryParamArgument{name: data}, nil
+	case "r_post_query_param":
+		return requiredPostQueryParamArgument{name: data}, nil
 	case "cookie":
 		return cookieArgument{name: data}, nil
 	case "response_headers":

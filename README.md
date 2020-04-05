@@ -232,8 +232,11 @@ Every argument has a tag value equivalent
 | `url_param=name` | `URLParam("name")`  | `string` |
 | `context`   | `Context()`  | `context.Context` |
 | `query_param=name`   | `QueryParam("name")`  | `string` |
+| `r_query_param=name`   | `RequiredQueryParam("name")`  | `string` |
 | `post_query_param=name`   | `PostQueryParam("name")`  | `string` |
+| `r_post_query_param=name`   | `RequiredPostQueryParam("name")`  | `string` |
 | `cookie=name`   | `Cookie("name")`  | `string` |
+| `r_cookie=name`   | `RequiredCookie("name")`  | `string` |
 | `response_headers`   | `ResponseHeaders()`  | `smartapi.Headers` |
 | `response_cookies`   | `ResponseCookies()`  | `smartapi.Cookies` |
 | `response_writer`   | `ResponseWriter()`  | `http.ResponseWriter` |
@@ -340,6 +343,44 @@ a.Get("/user", func(name string) (*User, error) {
 )
 ```
 
+### Required Query param
+
+Like `QueryParam()` but returns 400 BAD REQUEST when empty.
+
+```go
+a.Get("/user", func(name string) (*User, error) {
+    return db.GetUser(name)
+},
+    smartapi.RequiredQueryParam("name"),
+)
+```
+
+### Post Query param
+
+Reads a query param from requests body.
+
+```go
+a.Get("/user", func(name string) (*User, error) {
+    return db.GetUser(name)
+},
+    smartapi.PostQueryParam("name"),
+)
+```
+
+
+### Required Post Query param
+
+Like `PostQueryParam()` but returns 400 BAD REQUEST when empty.
+
+```go
+a.Get("/user", func(name string) (*User, error) {
+    return db.GetUser(name)
+},
+    smartapi.RequiredPostQueryParam("name"),
+)
+```
+
+
 ### URL param
 
 URL uses read chi's URL param and passes it into a function as a string.
@@ -366,7 +407,7 @@ a.Get("/example", func(test string) (string, error) {
 
 ### Required Header
 
-Like header, but responds with 400 BAD REQUEST, if the header is not present.
+Like `Header()`, but responds with 400 BAD REQUEST, if the header is not present.
 
 ```go
 a.Get("/example", func(test string) (string, error) {
@@ -385,6 +426,18 @@ a.Get("/example", func(c string) (string, error) {
     return fmt.Sprintf("cookie: %s", c)
 },
     smartapi.Cookie("cookie"),
+)
+```
+
+### Required Cookie
+
+Like `Cookie()`, but returns 400 BAD REQUEST when empty.
+
+```go
+a.Get("/example", func(c string) (string, error) {
+    return fmt.Sprintf("cookie: %s", c)
+},
+    smartapi.RequiredCookie("cookie"),
 )
 ```
 
