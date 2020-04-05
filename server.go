@@ -59,7 +59,7 @@ func checkHandler(handlerFunc interface{}, arguments []Argument, writesResponse 
 	for i := 0; i < len(arguments); i++ {
 		arg := fnType.In(i)
 		if err := arguments[i].checkArg(arg); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("(argument %d) %w", i, err)
 		}
 	}
 
@@ -143,7 +143,7 @@ func (s *Server) addEndpoint(method method, name string, handler interface{}, ar
 
 	var params []Argument
 	var middlewares []func(http.Handler) http.Handler
-	for _, a := range args {
+	for i, a := range args {
 		flags := a.options()
 		if flags.has(flagArgument) {
 			params = append(params, a.(Argument))
@@ -165,6 +165,10 @@ func (s *Server) addEndpoint(method method, name string, handler interface{}, ar
 			if returnStatus == 0 {
 				returnStatus = http.StatusOK
 			}
+		}
+		if flags.has(flagError) {
+			s.errors = append(s.errors, fmt.Errorf("endpoint %s: (argument %d) %w", name, i, a.(errorEndpointParam).err))
+			return
 		}
 	}
 

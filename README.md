@@ -116,7 +116,6 @@ func main() {
 Planned features that will be added really soon.
 
 + Routing
-+ Struct argument with request data passed into fields by tags
 
 ## Support for legacy handlers
 
@@ -204,10 +203,47 @@ Content-Type: text/plain; charset=utf-8
 
 List of available endpoint attributes
 
+### Request Struct
+
+Request can be passed into a structure's field by tags.
+
+```go
+type headers struct {
+    Foo string `smartapi:"header=X-Foo"`
+    Bar string `smartapi:"header=X-Bar"`
+}
+a.Post("/user", func(h *headers) (string, error) {
+    return fmt.Sprintf("Foo: %s, Bar: %s\n", h.Foo, h.Bar), nil
+},
+    smartapi.RequestStruct(headers{}),
+)
+```
+
+Every argument has a tag value equivalent
+
+| Tag Value   | Function Equivalent  | Expected Type |
+|-------------|----------------------|---------------|
+| `header=name` | `Header("name")`  | `string` |
+| `r_header=name` | `RequiredHeader("name")`  | `string` |
+| `json_body`   | `JSONBody()`  | `...` |
+| `string_body`   | `StringBody()`  | `string` |
+| `byte_slice_body`   | `ByteSliceBody()`  | `[]byte` |
+| `body_reader`   | `BodyReader()`  | `io.Reader` |
+| `url_param=name` | `URLParam("name")`  | `string` |
+| `context`   | `Context()`  | `context.Context` |
+| `query_param=name`   | `QueryParam("name")`  | `string` |
+| `post_query_param=name`   | `PostQueryParam("name")`  | `string` |
+| `cookie=name`   | `Cookie("name")`  | `string` |
+| `response_headers`   | `ResponseHeaders()`  | `smartapi.Headers` |
+| `response_cookies`   | `ResponseCookies()`  | `smartapi.Cookies` |
+| `response_writer`   | `ResponseWriter()`  | `http.ResponseWriter` |
+| `request`   | `Request()`  | `*http.Request` |
+| `request_struct`   | `RequestStruct()`  | `struct{...}` |
+
 ### JSON Body
 
 JSON Body unmarshals the request's body into a given structure type.
-Expects a pointer to that structure as a function argument.
+Expects a pointer to that structure as a function argument. (You can use JSONBodyDirect to pass into it a structure)
 
 ```go
 a.Post("/user", func(u *User) error {

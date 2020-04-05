@@ -22,6 +22,7 @@ const (
 	flagMiddleware
 	flagReadsRequestBody
 	flagWritesResponse
+	flagError
 )
 
 func (e endpointOptions) has(o endpointOptions) bool {
@@ -37,6 +38,14 @@ type EndpointParam interface {
 type Argument interface {
 	checkArg(arg reflect.Type) error
 	getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error)
+}
+
+type errorEndpointParam struct {
+	err error
+}
+
+func (e errorEndpointParam) options() endpointOptions {
+	return flagError
 }
 
 type headerArgument struct {
@@ -116,9 +125,38 @@ func (a jsonBodyArgument) getValue(w http.ResponseWriter, r *http.Request) (refl
 	return value, nil
 }
 
-// JSONBody reads request's body and unmarshals it into a json structure
+// JSONBody reads request's body and unmarshals it into a pointer to a json structure
 func JSONBody(v interface{}) EndpointParam {
 	return jsonBodyArgument{typ: reflect.TypeOf(v)}
+}
+
+type jsonBodyDirectArgument struct {
+	typ reflect.Type
+}
+
+func (a jsonBodyDirectArgument) options() endpointOptions {
+	return flagArgument | flagReadsRequestBody
+}
+
+func (a jsonBodyDirectArgument) checkArg(arg reflect.Type) error {
+	if a.typ != arg {
+		return errors.New("invalid type")
+	}
+	return nil
+}
+
+func (a jsonBodyDirectArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
+	value := reflect.New(a.typ)
+	obj := value.Interface()
+	if err := json.NewDecoder(r.Body).Decode(obj); err != nil {
+		return reflect.Value{}, WrapError(http.StatusBadRequest, err, "cannot unmarshal request")
+	}
+	return value.Elem(), nil
+}
+
+// JSONBodyDirect reads request's body and unmarshals it into a json structure
+func JSONBodyDirect(v interface{}) EndpointParam {
+	return jsonBodyDirectArgument{typ: reflect.TypeOf(v)}
 }
 
 type stringBodyArgument struct{}
@@ -430,6 +468,135 @@ func (fullRequestArgument) getValue(_ http.ResponseWriter, r *http.Request) (ref
 
 func Request() EndpointParam {
 	return fullRequestArgument{}
+}
+
+const smartAPITagName = "smartapi"
+
+type tagStructArgument struct{
+	structType reflect.Type
+	flags      endpointOptions
+	arguments  []Argument
+}
+
+func (t tagStructArgument) options() endpointOptions {
+	return t.flags
+}
+
+func (t tagStructArgument) checkArg(arg reflect.Type) error {
+	if arg.Kind() != reflect.Ptr {
+		return errors.New("argument must be a pointer")
+	}
+	if t.structType != arg.Elem() {
+		return errors.New("invalid argument type")
+	}
+	return nil
+}
+
+func (t tagStructArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
+	return constructStruct(t.structType, t.arguments, w, r)
+}
+
+type tagStructDirectArgument tagStructArgument
+
+func (t tagStructDirectArgument) options() endpointOptions {
+	return t.flags
+}
+
+func (t tagStructDirectArgument) checkArg(arg reflect.Type) error {
+	if t.structType != arg {
+		return errors.New("invalid argument type")
+	}
+	return nil
+}
+
+func (t tagStructDirectArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
+	v, err := constructStruct(t.structType, t.arguments, w, r)
+	if err != nil {
+		return reflect.Value{}, err
+	}
+	return v.Elem(), nil
+}
+
+func constructStruct(structType reflect.Type, args []Argument, w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
+	vPtr := reflect.New(structType)
+	vStruct := vPtr.Elem()
+	for i, a := range args {
+		if a == nil {
+			continue
+		}
+		fieldValue, err := a.getValue(w, r)
+		if err != nil {
+			return reflect.Value{}, err
+		}
+		vStruct.Field(i).Set(fieldValue)
+	}
+	return vPtr, nil
+}
+
+func requestStruct(structType reflect.Type) (tagStructArgument, error) {
+	if structType.Kind() != reflect.Struct {
+		return tagStructArgument{}, errors.New("RequestStruct's argument must be a structure")
+	}
+
+	flags := flagArgument
+	numFields := structType.NumField()
+	numReadsBody := 0
+	var arguments []Argument
+
+	for i := 0; i < numFields; i++ {
+		f := structType.Field(i)
+
+		tag := f.Tag.Get(smartAPITagName)
+		if len(tag) == 0 {
+			arguments = append(arguments, nil)
+			continue
+		}
+
+		fieldArg, err := parseArgument(tag, f)
+		if err != nil {
+			return tagStructArgument{}, fmt.Errorf("(struct field %s) %w", f.Name, err)
+		}
+
+		if err := fieldArg.checkArg(f.Type); err != nil {
+			return tagStructArgument{}, fmt.Errorf("(struct field %s) %w", f.Name, err)
+		}
+
+		fieldOpts := fieldArg.(EndpointParam).options()
+		if fieldOpts.has(flagReadsRequestBody) {
+			numReadsBody++
+		}
+
+		flags |= fieldOpts
+		arguments = append(arguments, fieldArg)
+	}
+
+	if numReadsBody > 1 {
+		return tagStructArgument{}, errors.New("only one struct field can read request's body")
+	}
+
+	return tagStructArgument{
+		structType: structType,
+		arguments:  arguments,
+		flags:      flags,
+	}, nil
+}
+
+// RequestStruct passes request's arguments into struct's fields by tags
+func RequestStructDirect(s interface{}) EndpointParam {
+	reqStruct, err := requestStruct(reflect.TypeOf(s))
+	if err != nil {
+		return errorEndpointParam{err: err}
+	}
+	return tagStructDirectArgument(reqStruct)
+}
+
+// RequestStruct passes request's arguments into struct's fields by tags
+func RequestStruct(s interface{}) EndpointParam {
+	reqStruct, err := requestStruct(reflect.TypeOf(s))
+	if err != nil {
+		return errorEndpointParam{err: err}
+	}
+	return reqStruct
 }
 
 type middleware struct {

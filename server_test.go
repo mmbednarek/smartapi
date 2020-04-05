@@ -67,6 +67,31 @@ func TestAttributes(t *testing.T) {
 			responseBody: nil,
 		},
 		{
+			name: "JSONBody Direct",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", bytes.NewReader([]byte(`{"name": "John", "surname": "Smith"}`)))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type foo struct {
+					Name    string `json:"name"`
+					Surname string `json:"surname"`
+				}
+				api.Post("/test", func(f foo) error {
+					require.Equal(t, "John", f.Name)
+					require.Equal(t, "Smith", f.Surname)
+					return nil
+				},
+					smartapi.JSONBodyDirect(foo{}),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
 			name: "JSONBody Error",
 			request: func() *http.Request {
 				request, err := http.NewRequest("POST", "/test", bytes.NewReader([]byte(`{"name": "John", "surname": "Smith"`)))
@@ -84,6 +109,29 @@ func TestAttributes(t *testing.T) {
 					return nil
 				},
 					smartapi.JSONBody(foo{}),
+				)
+			},
+			responseCode: http.StatusBadRequest,
+			responseBody: []byte("{\"status\":400,\"reason\":\"cannot unmarshal request\"}\n"),
+		},
+		{
+			name: "JSONBody Direct Error",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", bytes.NewReader([]byte(`{"name": "John", "surname": "Smith"`)))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type foo struct {
+					Name    string `json:"name"`
+					Surname string `json:"surname"`
+				}
+				api.Post("/test", func(f foo) error {
+					return nil
+				},
+					smartapi.JSONBodyDirect(foo{}),
 				)
 			},
 			responseCode: http.StatusBadRequest,
@@ -393,6 +441,225 @@ func TestAttributes(t *testing.T) {
 			},
 			responseCode: http.StatusForbidden,
 			responseBody: []byte("header value: test!"),
+		},
+		{
+			name: "Tag Struct",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test/url?param=query&other_param=other_query", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				request.PostForm = url.Values{}
+				request.PostForm.Set("post_param", "postquery")
+				request.Header.Set("X-Example", "header")
+				request.Header.Set("X-Req-Example", "req_header")
+				request.Header.Set("X-Another-Example", "other_header")
+				request.Header.Set("Cookie", (&http.Cookie{Name: "User-Agent", Value: "Mozilla/5.0"}).String())
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type exampleStruct struct {
+					Header         string          `smartapi:"header=X-Example"`
+					RequiredHeader string          `smartapi:"r_header=X-Req-Example"`
+					Ctx            context.Context `smartapi:"context"`
+					URLParam       string          `smartapi:"url_param=param"`
+					Fill           int
+					QueryParam     string `smartapi:"query_param=param"`
+					PostQueryParam string `smartapi:"post_query_param=post_param"`
+					AnotherFill    int
+					Cookie         string              `smartapi:"cookie=User-Agent"`
+					Headers        smartapi.Headers    `smartapi:"response_headers"`
+					Cookies        smartapi.Cookies    `smartapi:"response_cookies"`
+					Response       http.ResponseWriter `smartapi:"response_writer"`
+					RequestStruct  struct {
+						AnotherHeader string `smartapi:"header=X-Another-Example"`
+					} `smartapi:"request_struct"`
+					RequestPtr *struct {
+						AnotherQuery string `smartapi:"query_param=other_param"`
+					} `smartapi:"request_struct"`
+				}
+				api.Post("/test/{param}", func(es *exampleStruct) {
+					require.Equal(t, "header", es.Header)
+					require.Equal(t, "req_header", es.RequiredHeader)
+					require.NotNil(t, es.Ctx)
+					require.Equal(t, "url", es.URLParam)
+					require.Equal(t, "query", es.QueryParam)
+					require.Equal(t, "postquery", es.PostQueryParam)
+					require.Equal(t, "Mozilla/5.0", es.Cookie)
+					require.Equal(t, "other_header", es.RequestStruct.AnotherHeader)
+					require.Equal(t, "other_query", es.RequestPtr.AnotherQuery)
+					es.Headers.Set("Response-Header", "header")
+					es.Cookies.Add(&http.Cookie{Name: "Version", Value: "1.0"})
+					es.Response.WriteHeader(http.StatusForbidden)
+					_, err := fmt.Fprint(es.Response, "response")
+					require.NoError(t, err)
+				},
+					smartapi.RequestStruct(exampleStruct{}),
+				)
+			},
+			responseCode: http.StatusForbidden,
+			responseBody: []byte("response"),
+		},
+		{
+			name: "Tag Struct JSON Body",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", strings.NewReader(`{"foo": "a", "bar": "b"}`))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type example struct {
+					Foo string `json:"foo"`
+					Bar string `json:"bar"`
+				}
+				type exampleStruct struct {
+					Body example `smartapi:"json_body"`
+				}
+				api.Post("/test", func(es *exampleStruct) {
+					require.Equal(t, "a", es.Body.Foo)
+					require.Equal(t, "b", es.Body.Bar)
+				},
+					smartapi.RequestStruct(exampleStruct{}),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "Tag Struct String Body",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", strings.NewReader("test"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type exampleStruct struct {
+					Body string `smartapi:"string_body"`
+				}
+				api.Post("/test", func(es *exampleStruct) {
+					require.Equal(t, "test", es.Body)
+				},
+					smartapi.RequestStruct(exampleStruct{}),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "Tag Struct Byte Slice Body",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", strings.NewReader("test"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type exampleStruct struct {
+					Body []byte `smartapi:"byte_slice_body"`
+				}
+				api.Post("/test", func(es *exampleStruct) {
+					require.Equal(t, "test", string(es.Body))
+				},
+					smartapi.RequestStruct(exampleStruct{}),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "Tag Struct Body Reader",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", strings.NewReader("test"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type exampleStruct struct {
+					Body io.Reader `smartapi:"body_reader"`
+				}
+				api.Post("/test", func(es *exampleStruct) {
+					all, err := ioutil.ReadAll(es.Body)
+					require.NoError(t, err)
+					require.Equal(t, "test", string(all))
+				},
+					smartapi.RequestStruct(exampleStruct{}),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "Tag Struct Full Request",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", strings.NewReader("test"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type exampleStruct struct {
+					Body *http.Request `smartapi:"request"`
+				}
+				api.Post("/test", func(es *exampleStruct) {
+					all, err := ioutil.ReadAll(es.Body.Body)
+					require.NoError(t, err)
+					require.Equal(t, "test", string(all))
+				},
+					smartapi.RequestStruct(exampleStruct{}),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "Tag Struct Bad Request",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type exampleStruct struct {
+					Foo string `smartapi:"r_header=X-Foo"`
+				}
+				api.Post("/test", func(es *exampleStruct) {
+				},
+					smartapi.RequestStruct(exampleStruct{}),
+				)
+			},
+			responseCode: http.StatusBadRequest,
+			responseBody: []byte(`{"status":400,"reason":"missing required header X-Foo"}` + "\n"),
+		},
+		{
+			name: "Tag Struct Direct Bad Request",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type exampleStruct struct {
+					Foo string `smartapi:"r_header=X-Foo"`
+				}
+				api.Post("/test", func(es exampleStruct) {
+				},
+					smartapi.RequestStructDirect(exampleStruct{}),
+				)
+			},
+			responseCode: http.StatusBadRequest,
+			responseBody: []byte(`{"status":400,"reason":"missing required header X-Foo"}` + "\n"),
 		},
 		{
 			name: "Middleware",
@@ -1347,7 +1614,7 @@ func TestHandlersErrors(t *testing.T) {
 					smartapi.QueryParam("name"),
 				)
 			},
-			expect: errors.New("endpoint /test: expected a string type"),
+			expect: errors.New("endpoint /test: (argument 0) expected a string type"),
 		},
 		{
 			name: "PostQueryParam wrong type",
@@ -1358,7 +1625,7 @@ func TestHandlersErrors(t *testing.T) {
 					smartapi.PostQueryParam("name"),
 				)
 			},
-			expect: errors.New("endpoint /test: expected a string type"),
+			expect: errors.New("endpoint /test: (argument 0) expected a string type"),
 		},
 		{
 			name: "URLParam wrong type",
@@ -1369,7 +1636,7 @@ func TestHandlersErrors(t *testing.T) {
 					smartapi.URLParam("name"),
 				)
 			},
-			expect: errors.New("endpoint /test/{name}: expected a string type"),
+			expect: errors.New("endpoint /test/{name}: (argument 0) expected a string type"),
 		},
 		{
 			name: "Header wrong type",
@@ -1380,7 +1647,20 @@ func TestHandlersErrors(t *testing.T) {
 					smartapi.Header("name"),
 				)
 			},
-			expect: errors.New("endpoint /test: expected a string type"),
+			expect: errors.New("endpoint /test: (argument 0) expected a string type"),
+		},
+		{
+			name: "Tag Struct Error",
+			api: func(api *smartapi.Server) {
+				type exampleStruct struct {
+					Value string `smartapi:"header=X-Example"`
+				}
+				api.Post("/test", func(es *exampleStruct) {
+				},
+					smartapi.RequestStruct(23),
+				)
+			},
+			expect: errors.New("endpoint /test: (argument 0) RequestStruct's argument must be a structure"),
 		},
 		{
 			name: "Full Request Wrong Type",
@@ -1391,7 +1671,7 @@ func TestHandlersErrors(t *testing.T) {
 					smartapi.Request(),
 				)
 			},
-			expect: errors.New("endpoint /test: argument's type must be *http.Request"),
+			expect: errors.New("endpoint /test: (argument 0) argument's type must be *http.Request"),
 		},
 		{
 			name: "Legacy check fails with response code",
@@ -1415,7 +1695,7 @@ func TestHandlersErrors(t *testing.T) {
 					smartapi.RequiredHeader("name"),
 				)
 			},
-			expect: errors.New("endpoint /test: expected a string type"),
+			expect: errors.New("endpoint /test: (argument 0) expected a string type"),
 		},
 		{
 			name: "Cookie wrong type",
@@ -1426,7 +1706,7 @@ func TestHandlersErrors(t *testing.T) {
 					smartapi.Cookie("name"),
 				)
 			},
-			expect: errors.New("endpoint /test: expected a string type"),
+			expect: errors.New("endpoint /test: (argument 0) expected a string type"),
 		},
 		{
 			name: "JSON body wrong type",
@@ -1440,7 +1720,21 @@ func TestHandlersErrors(t *testing.T) {
 					smartapi.JSONBody(s{}),
 				)
 			},
-			expect: errors.New("endpoint /test: invalid type"),
+			expect: errors.New("endpoint /test: (argument 0) invalid type"),
+		},
+		{
+			name: "JSON body wrong type",
+			api: func(api *smartapi.Server) {
+				type s struct {
+					Field string
+				}
+				api.Get("/test", func(value *s) error {
+					return nil
+				},
+					smartapi.JSONBodyDirect(s{}),
+				)
+			},
+			expect: errors.New("endpoint /test: (argument 0) invalid type"),
 		},
 		{
 			name: "String body wrong type",
@@ -1451,7 +1745,7 @@ func TestHandlersErrors(t *testing.T) {
 					smartapi.StringBody(),
 				)
 			},
-			expect: errors.New("endpoint /test: expected string type"),
+			expect: errors.New("endpoint /test: (argument 0) expected string type"),
 		},
 		{
 			name: "Byte slice wrong type",
@@ -1462,7 +1756,7 @@ func TestHandlersErrors(t *testing.T) {
 					smartapi.ByteSliceBody(),
 				)
 			},
-			expect: errors.New("endpoint /test: expected a byte slice"),
+			expect: errors.New("endpoint /test: (argument 0) expected a byte slice"),
 		},
 		{
 			name: "Reader wrong type",
@@ -1473,7 +1767,7 @@ func TestHandlersErrors(t *testing.T) {
 					smartapi.BodyReader(),
 				)
 			},
-			expect: errors.New("endpoint /test: expected io.Reader interface"),
+			expect: errors.New("endpoint /test: (argument 0) expected io.Reader interface"),
 		},
 		{
 			name: "Context Wrong Type",
@@ -1484,7 +1778,7 @@ func TestHandlersErrors(t *testing.T) {
 					smartapi.Context(),
 				)
 			},
-			expect: errors.New("endpoint /test: expected context.Context"),
+			expect: errors.New("endpoint /test: (argument 0) expected context.Context"),
 		},
 		{
 			name: "Headers Wrong Type",
@@ -1495,7 +1789,7 @@ func TestHandlersErrors(t *testing.T) {
 					smartapi.ResponseHeaders(),
 				)
 			},
-			expect: errors.New("endpoint /test: argument's type must be smartapi.Headers"),
+			expect: errors.New("endpoint /test: (argument 0) argument's type must be smartapi.Headers"),
 		},
 		{
 			name: "Cookies Wrong Type",
@@ -1506,7 +1800,7 @@ func TestHandlersErrors(t *testing.T) {
 					smartapi.ResponseCookies(),
 				)
 			},
-			expect: errors.New("endpoint /test: argument's type must be smartapi.Cookies"),
+			expect: errors.New("endpoint /test: (argument 0) argument's type must be smartapi.Cookies"),
 		},
 		{
 			name: "Response Writer Wrong Type",
@@ -1517,7 +1811,7 @@ func TestHandlersErrors(t *testing.T) {
 					smartapi.ResponseWriter(),
 				)
 			},
-			expect: errors.New("endpoint /test: argument's type must be http.ResponseWriter"),
+			expect: errors.New("endpoint /test: (argument 0) argument's type must be http.ResponseWriter"),
 		},
 		{
 			name: "Response Writer Cannot return response",
@@ -1549,6 +1843,140 @@ func TestHandlersErrors(t *testing.T) {
 				})
 			},
 			expect: errors.New("endpoint /test: invalid number of return arguments"),
+		},
+		{
+			name: "Tag Struct Non Pointer Type",
+			api: func(api *smartapi.Server) {
+				type exampleStruct struct {
+					Body string `smartapi:"string_body"`
+				}
+				api.Post("/test", func(s int) {
+				},
+					smartapi.RequestStruct(exampleStruct{}),
+				)
+			},
+			expect: errors.New("endpoint /test: (argument 0) argument must be a pointer"),
+		},
+		{
+			name: "Tag Struct Wrong Pointer Type",
+			api: func(api *smartapi.Server) {
+				type exampleStruct struct {
+					Body string `smartapi:"string_body"`
+				}
+				api.Post("/test", func(s *smartapi.Server) {
+				},
+					smartapi.RequestStruct(exampleStruct{}),
+				)
+			},
+			expect: errors.New("endpoint /test: (argument 0) invalid argument type"),
+		},
+		{
+			name: "Tag Struct Direct Pointer Type",
+			api: func(api *smartapi.Server) {
+				type exampleStruct struct {
+					Body string `smartapi:"string_body"`
+				}
+				api.Post("/test", func(s *smartapi.Server) {
+				},
+					smartapi.RequestStructDirect(exampleStruct{}),
+				)
+			},
+			expect: errors.New("endpoint /test: (argument 0) invalid argument type"),
+		},
+		{
+			name: "Tag Struct Wrong Field Type",
+			api: func(api *smartapi.Server) {
+				type exampleStruct struct {
+					Body int `smartapi:"string_body"`
+				}
+				api.Post("/test", func(s *exampleStruct) {
+				},
+					smartapi.RequestStruct(exampleStruct{}),
+				)
+			},
+			expect: errors.New("endpoint /test: (argument 0) (struct field Body) expected string type"),
+		},
+		{
+			name: "Tag Struct Invalid Tag",
+			api: func(api *smartapi.Server) {
+				type exampleStruct struct {
+					Body int `smartapi:"non_existing_tag"`
+				}
+				api.Post("/test", func(s *exampleStruct) {
+				},
+					smartapi.RequestStruct(exampleStruct{}),
+				)
+			},
+			expect: errors.New("endpoint /test: (argument 0) (struct field Body) unsupported tag"),
+		},
+		{
+			name: "Tag Struct Direct Not A Struct",
+			api: func(api *smartapi.Server) {
+				type exampleStruct struct {
+					Inner int `smartapi:"request_struct"`
+				}
+				api.Post("/test", func(s *exampleStruct) {
+				},
+					smartapi.RequestStruct(exampleStruct{}),
+				)
+			},
+			expect: errors.New("endpoint /test: (argument 0) (struct field Inner) invalid type of request_struct"),
+		},
+		{
+			name: "Tag Struct Ptr To A Non-Struct",
+			api: func(api *smartapi.Server) {
+				type exampleStruct struct {
+					Inner *int `smartapi:"request_struct"`
+				}
+				api.Post("/test", func(s *exampleStruct) {
+				},
+					smartapi.RequestStruct(exampleStruct{}),
+				)
+			},
+			expect: errors.New("endpoint /test: (argument 0) (struct field Inner) RequestStruct's argument must be a structure"),
+		},
+		{
+			name: "Tag Struct Inner request struct error",
+			api: func(api *smartapi.Server) {
+				type exampleStruct struct {
+					Inner struct {
+						Header int `smartapi:"header=something"`
+					} `smartapi:"request_struct"`
+				}
+				api.Post("/test", func(s *exampleStruct) {
+				},
+					smartapi.RequestStruct(exampleStruct{}),
+				)
+			},
+			expect: errors.New("endpoint /test: (argument 0) (struct field Inner) (struct field Header) expected a string type"),
+		},
+		{
+			name: "Tag Struct Multiple Readers",
+			api: func(api *smartapi.Server) {
+				type exampleStruct struct {
+					StrBody  string `smartapi:"string_body"`
+					ByteBody []byte `smartapi:"byte_slice_body"`
+				}
+				api.Post("/test", func(s *exampleStruct) {
+				},
+					smartapi.RequestStruct(exampleStruct{}),
+				)
+			},
+			expect: errors.New("endpoint /test: (argument 0) only one struct field can read request's body"),
+		},
+		{
+			name: "Tag Struct Multiple Readers Direct",
+			api: func(api *smartapi.Server) {
+				type exampleStruct struct {
+					StrBody  string `smartapi:"string_body"`
+					ByteBody []byte `smartapi:"byte_slice_body"`
+				}
+				api.Post("/test", func(s exampleStruct) {
+				},
+					smartapi.RequestStructDirect(exampleStruct{}),
+				)
+			},
+			expect: errors.New("endpoint /test: (argument 0) only one struct field can read request's body"),
 		},
 	}
 
