@@ -26,7 +26,7 @@ func Test_handleErrorValue(t *testing.T) {
 		{
 			name: "OK",
 			args: args{
-				logger: nil,
+				logger:     nil,
 				errorValue: reflect.ValueOf(Error(404, "not found", "not found")),
 			},
 			responseCode: 404,
@@ -35,7 +35,7 @@ func Test_handleErrorValue(t *testing.T) {
 		{
 			name: "Non Error Passed",
 			args: args{
-				logger: nil,
+				logger:     nil,
 				errorValue: reflect.ValueOf(32),
 			},
 			responseCode: 500,

@@ -184,7 +184,7 @@ func (s *Server) addEndpoint(method method, name string, handler interface{}, ar
 			legacy:       true,
 			middlewares:  middlewares,
 		})
-		return 
+		return
 	}
 
 	if returnStatus == 0 {

@@ -533,7 +533,7 @@ func ResponseWriter() EndpointParam {
 	return responseWriterArgument{}
 }
 
-type fullRequestArgument struct {}
+type fullRequestArgument struct{}
 
 var fullRequestType = reflect.TypeOf(&http.Request{})
 
@@ -558,7 +558,7 @@ func Request() EndpointParam {
 
 const smartAPITagName = "smartapi"
 
-type tagStructArgument struct{
+type tagStructArgument struct {
 	structType reflect.Type
 	flags      endpointOptions
 	arguments  []Argument

@@ -12,7 +12,7 @@ func parseArgument(tag string, field reflect.StructField) (Argument, error) {
 	eqAt := strings.Index(tag, "=")
 	if eqAt >= 0 {
 		kind = tag[:eqAt]
-		data = tag[(eqAt+1):]
+		data = tag[(eqAt + 1):]
 	} else {
 		kind = tag
 	}
