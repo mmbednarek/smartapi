@@ -30,6 +30,7 @@ const (
 	MethodHead
 	MethodTrace
 )
+
 func (m Method) String() string {
 	return methodNames[m]
 }
