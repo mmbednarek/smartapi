@@ -17,19 +17,35 @@ type API interface {
 	Init()
 }
 
-type method int
+type Method int
 
 const (
-	methodPost method = iota
-	methodGet
-	methodPatch
-	methodDelete
-	methodPut
-	methodOptions
-	methodConnect
-	methodHead
-	methodTrace
+	MethodPost Method = iota
+	MethodGet
+	MethodPatch
+	MethodDelete
+	MethodPut
+	MethodOptions
+	MethodConnect
+	MethodHead
+	MethodTrace
 )
+
+func (m Method) String() string {
+	return methodNames[m]
+}
+
+var methodNames = []string{
+	MethodPost:    "POST",
+	MethodGet:     "GET",
+	MethodPatch:   "PATCH",
+	MethodDelete:  "DELETE",
+	MethodPut:     "PUT",
+	MethodOptions: "OPTIONS",
+	MethodConnect: "CONNECT",
+	MethodHead:    "HEAD",
+	MethodTrace:   "TRACE",
+}
 
 type defaultLogger struct{}
 

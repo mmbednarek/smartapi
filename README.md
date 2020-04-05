@@ -111,11 +111,30 @@ func main() {
 }
 ```
 
-## Future features
+## Middlewares
 
-Planned features that will be added really soon.
+Middlewares can be used just as in Chi. `Use(...)` appends middlewares to be used.
+`With(...)` creates a copy of a router with chosen middlewares.
 
-+ Routing
+## Routing
+
+Routing works similarity to Chi routing. Parameters can be prepended to be used in all endpoints in that route.
+
+```go
+a.Route("/v1/foo", func(r smartapi.Router) {
+    r.Route("/bar", func(r smartapi.Router) {
+        r.Get("/test", func(ctx context.Context, foo string, test string) {
+            ...
+        },
+            smartapi.QueryParam("test"),
+        )
+    },
+        smartapi.Header("X-Foo"),
+    )
+},
+    smartapi.Context(),
+)
+```
 
 ## Support for legacy handlers
 
@@ -493,17 +512,3 @@ a.Get("/example", func() error {
     smartapi.ResponseStatus(http.StatusCreated),
 )
 ```
-
-### Middleware
-
-Adds middlewares to the endpoint
-
-```go
-a.Get("/example", func() error {
-    return nil
-},
-    smartapi.Middleware(middleware.DefaultLogger, middleware.SetHeader("Api-Version", "1.2.3")),
-)
-```
-
-**NOTICE** You can add a middlewares to all the endpoints with `a.With(...)`.

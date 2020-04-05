@@ -443,6 +443,35 @@ func TestAttributes(t *testing.T) {
 			responseBody: []byte("header value: test!"),
 		},
 		{
+			name: "Router",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/v1/foo/bar/test?test=test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				request.Header.Set("X-Foo", "foo")
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Route("/v1/foo", func(r smartapi.Router) {
+					r.Route("/bar", func(r smartapi.Router) {
+						r.Get("/test", func(ctx context.Context, h string, qp string) {
+							require.Equal(t, "foo", h)
+							require.Equal(t, "test", qp)
+						},
+							smartapi.QueryParam("test"),
+						)
+					},
+						smartapi.Header("X-Foo"),
+					)
+				},
+					smartapi.Context(),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
 			name: "Tag Struct",
 			request: func() *http.Request {
 				request, err := http.NewRequest("POST", "/test/url?param=query&other_param=other_query&rparam=rquery", nil)
@@ -667,7 +696,7 @@ func TestAttributes(t *testing.T) {
 			responseBody: []byte(`{"status":400,"reason":"missing required header X-Foo"}` + "\n"),
 		},
 		{
-			name: "Middleware",
+			name: "Use Middleware",
 			request: func() *http.Request {
 				request, err := http.NewRequest("POST", "/test", nil)
 				if err != nil {
@@ -676,16 +705,16 @@ func TestAttributes(t *testing.T) {
 				return request
 			},
 			api: func(api *smartapi.Server) {
+				api.Use(func(h http.Handler) http.Handler {
+					return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						r.Header.Set("X-Middleware", "test")
+						h.ServeHTTP(w, r)
+					})
+				})
 				api.Post("/test", func(mhd string) error {
 					require.Equal(t, "test", mhd)
 					return nil
 				},
-					smartapi.Middleware(func(h http.Handler) http.Handler {
-						return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-							r.Header.Set("X-Middleware", "test")
-							h.ServeHTTP(w, r)
-						})
-					}),
 					smartapi.Header("X-Middleware"),
 				)
 			},
@@ -707,8 +736,7 @@ func TestAttributes(t *testing.T) {
 						r.Header.Set("X-Middleware", "test")
 						h.ServeHTTP(w, r)
 					})
-				})
-				api.Post("/test", func(mhd string) error {
+				}).Post("/test", func(mhd string) error {
 					require.Equal(t, "test", mhd)
 					return nil
 				},
@@ -2156,6 +2184,26 @@ func TestHandlersErrors(t *testing.T) {
 				)
 			},
 			expect: errors.New("endpoint /test: (argument 0) only one struct field can read request's body"),
+		},
+		{
+			name: "Router Pass Error",
+			api: func(api *smartapi.Server) {
+				api.Route("/v1/user", func(r smartapi.Router) {
+					r.Get("/test", func(qp int) {
+						require.Equal(t, "test", qp)
+					},
+						smartapi.QueryParam("test"),
+					)
+				})
+			},
+			expect: errors.New("route /v1/user: endpoint /test: (argument 0) expected a string type"),
+		},
+		{
+			name: "Router Pass Error",
+			api: func(api *smartapi.Server) {
+				api.Route("/v1/user", nil)
+			},
+			expect: errors.New("route /v1/user: nil handler"),
 		},
 	}
 
