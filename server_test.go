@@ -814,6 +814,30 @@ func TestAttributes(t *testing.T) {
 			responseBody: []byte(`{"status":400,"reason":"missing required header X-Test1"}` + "\n"),
 		},
 		{
+			name: "Header As Int",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				request.Header.Set("X-Test1", "32")
+				request.Header.Set("X-Test2", "567")
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(test1, test2 int) error {
+					require.Equal(t, 32, test1)
+					require.Equal(t, 567, test2)
+					return nil
+				},
+					smartapi.AsInt(smartapi.Header("X-Test1")),
+					smartapi.AsInt(smartapi.Header("X-Test2")),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
 			name: "Query Params",
 			request: func() *http.Request {
 				request, err := http.NewRequest("GET", "/test?param2=value&param1=eulav", nil)
