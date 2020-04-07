@@ -127,6 +127,11 @@ func isLegacyHandler(returnStatus int, args []Argument, handler interface{}) (ht
 }
 
 func (r *router) AddEndpoint(method Method, name string, handler interface{}, params []EndpointParam) {
+	if handler == nil {
+		r.errors = append(r.errors, fmt.Errorf("endpoint %s: nil handler", name))
+		return
+	}
+
 	returnStatus := 0
 	query := false
 	writesResponse := false

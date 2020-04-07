@@ -1687,6 +1687,13 @@ func TestHandlersErrors(t *testing.T) {
 
 	tests := []test{
 		{
+			name: "Nil handler",
+			api: func(api *smartapi.Server) {
+				api.Get("/test", nil)
+			},
+			expect: errors.New("endpoint /test: nil handler"),
+		},
+		{
 			name: "Too many arguments",
 			api: func(api *smartapi.Server) {
 				api.Get("/test", func(value string) error {
