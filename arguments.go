@@ -707,10 +707,6 @@ func (a asIntArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect
 		return reflect.Value{}, err
 	}
 
-	if v.Kind() != reflect.String {
-		return reflect.Value{}, Error(http.StatusInternalServerError, "AsInt() expected a string type", "unknown")
-	}
-
 	intValue, err := strconv.Atoi(v.String())
 	if err != nil {
 		return reflect.Value{}, WrapError(http.StatusBadRequest, fmt.Errorf("AsInt(%s) conversion failed: %w", v.String(), err), "integer parse error")
