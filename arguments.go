@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"reflect"
+	"strconv"
 
 	"github.com/go-chi/chi"
 )
@@ -35,6 +36,7 @@ type EndpointParam interface {
 
 // Argument represents an argument passed to a function
 type Argument interface {
+	EndpointParam
 	checkArg(arg reflect.Type) error
 	getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error)
 }
@@ -682,4 +684,46 @@ func RequestStruct(s interface{}) EndpointParam {
 		return errorEndpointParam{err: err}
 	}
 	return reqStruct
+}
+
+type asIntArgument struct {
+	arg Argument
+}
+
+func (a asIntArgument) options() endpointOptions {
+	return a.arg.options()
+}
+
+func (a asIntArgument) checkArg(arg reflect.Type) error {
+	if arg.Kind() != reflect.Int {
+		return errors.New("argument must be an int")
+	}
+	return nil
+}
+
+func (a asIntArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
+	v, err := a.arg.getValue(w, r)
+	if err != nil {
+		return reflect.Value{}, err
+	}
+
+	intValue, err := strconv.Atoi(v.String())
+	if err != nil {
+		return reflect.Value{}, WrapError(http.StatusBadRequest, fmt.Errorf("AsInt(%s) conversion failed: %w", v.String(), err), "integer parse error")
+	}
+
+	return reflect.ValueOf(intValue), nil
+}
+
+func AsInt(param EndpointParam) EndpointParam {
+	if !param.options().has(flagArgument) {
+		return errorEndpointParam{err: errors.New("AsInt() requires an argument param")}
+	}
+
+	arg := param.(Argument)
+	if err := arg.checkArg(reflect.TypeOf("")); err != nil {
+		return errorEndpointParam{err: errors.New("argument must accept a string")}
+	}
+
+	return asIntArgument{arg: arg}
 }

@@ -814,6 +814,69 @@ func TestAttributes(t *testing.T) {
 			responseBody: []byte(`{"status":400,"reason":"missing required header X-Test1"}` + "\n"),
 		},
 		{
+			name: "Header As Int",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				request.Header.Set("X-Test1", "32")
+				request.Header.Set("X-Test2", "567")
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(test1, test2 int) error {
+					require.Equal(t, 32, test1)
+					require.Equal(t, 567, test2)
+					return nil
+				},
+					smartapi.AsInt(smartapi.Header("X-Test1")),
+					smartapi.AsInt(smartapi.Header("X-Test2")),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "Required Header Error As Int",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(test1 int) error {
+					return nil
+				},
+					smartapi.AsInt(smartapi.RequiredHeader("X-Test1")),
+				)
+			},
+			responseCode: http.StatusBadRequest,
+			responseBody: []byte(`{"status":400,"reason":"missing required header X-Test1"}` + "\n"),
+		},
+		{
+			name: "Required Header parsing error",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				request.Header.Set("X-Foo", "gfkdf")
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(test1 int) error {
+					return nil
+				},
+					smartapi.AsInt(smartapi.Header("X-Foo")),
+				)
+			},
+			responseCode: http.StatusBadRequest,
+			responseBody: []byte(`{"status":400,"reason":"integer parse error"}` + "\n"),
+		},
+		{
 			name: "Query Params",
 			request: func() *http.Request {
 				request, err := http.NewRequest("GET", "/test?param2=value&param1=eulav", nil)
@@ -2211,6 +2274,46 @@ func TestHandlersErrors(t *testing.T) {
 				api.Route("/v1/user", nil)
 			},
 			expect: errors.New("route /v1/user: nil handler"),
+		},
+		{
+			name: "As int invalid type",
+			api: func(api *smartapi.Server) {
+				api.Post("/v1/user", func(s string) {
+				},
+					smartapi.AsInt(smartapi.Header("Foo")),
+				)
+			},
+			expect: errors.New("endpoint /v1/user: (argument 0) argument must be an int"),
+		},
+		{
+			name: "As int correct inner type",
+			api: func(api *smartapi.Server) {
+				api.Post("/v1/user", func(s int) {
+				},
+					smartapi.AsInt(smartapi.JSONBodyDirect("")),
+				)
+			},
+			expect: nil,
+		},
+		{
+			name: "As int incorrect inner type",
+			api: func(api *smartapi.Server) {
+				api.Post("/v1/user", func(s int) {
+				},
+					smartapi.AsInt(smartapi.JSONBodyDirect(0)),
+				)
+			},
+			expect: errors.New("endpoint /v1/user: (argument 0) argument must accept a string"),
+		},
+		{
+			name: "As int not arguments",
+			api: func(api *smartapi.Server) {
+				api.Post("/v1/user", func(s int) {
+				},
+					smartapi.AsInt(smartapi.ResponseStatus(http.StatusAccepted)),
+				)
+			},
+			expect: errors.New("endpoint /v1/user: (argument 0) AsInt() requires an argument param"),
 		},
 	}
 
