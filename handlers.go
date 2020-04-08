@@ -137,6 +137,32 @@ func (e ptrErrorHandler) handleRequest(w http.ResponseWriter, r *http.Request, l
 	}
 }
 
+type ptrHandler struct {
+	handlerFunc interface{}
+}
+
+func (e ptrHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpointData) {
+	attribs, err := getCallAttributes(w, r, endpoint)
+	if err != nil {
+		handleError(r.Context(), w, logger, err)
+		return
+	}
+	value := reflect.ValueOf(e.handlerFunc)
+	result := value.Call(attribs)
+
+	responseValue := result[0]
+
+	if responseValue.IsNil() {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(responseValue.Interface()); err != nil {
+		handleError(r.Context(), w, logger, WrapError(http.StatusInternalServerError, err, "cannot encode response"))
+		return
+	}
+}
+
 type structErrorHandler struct {
 	handlerFunc interface{}
 }
@@ -157,6 +183,27 @@ func (s structErrorHandler) handleRequest(w http.ResponseWriter, r *http.Request
 		handleErrorValue(r.Context(), w, logger, errorValue)
 		return
 	}
+
+	if err := json.NewEncoder(w).Encode(responseValue.Interface()); err != nil {
+		handleError(r.Context(), w, logger, WrapError(http.StatusInternalServerError, err, "cannot encode response"))
+		return
+	}
+}
+
+type structHandler struct {
+	handlerFunc interface{}
+}
+
+func (s structHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpointData) {
+	attribs, err := getCallAttributes(w, r, endpoint)
+	if err != nil {
+		handleError(r.Context(), w, logger, err)
+		return
+	}
+	value := reflect.ValueOf(s.handlerFunc)
+	result := value.Call(attribs)
+
+	responseValue := result[0]
 
 	if err := json.NewEncoder(w).Encode(responseValue.Interface()); err != nil {
 		handleError(r.Context(), w, logger, WrapError(http.StatusInternalServerError, err, "cannot encode response"))
@@ -197,6 +244,33 @@ func (s stringErrorHandler) handleRequest(w http.ResponseWriter, r *http.Request
 	}
 }
 
+type stringHandler struct {
+	handlerFunc interface{}
+}
+
+func (s stringHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpointData) {
+	attribs, err := getCallAttributes(w, r, endpoint)
+	if err != nil {
+		handleError(r.Context(), w, logger, err)
+		return
+	}
+	value := reflect.ValueOf(s.handlerFunc)
+	result := value.Call(attribs)
+
+	responseValue := result[0].String()
+
+	if len(responseValue) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	_, err = w.Write([]byte(responseValue))
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
 type byteSliceErrorHandler struct {
 	handlerFunc interface{}
 }
@@ -217,6 +291,33 @@ func (b byteSliceErrorHandler) handleRequest(w http.ResponseWriter, r *http.Requ
 		handleErrorValue(r.Context(), w, logger, errorValue)
 		return
 	}
+
+	if len(responseValue) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	_, err = w.Write(responseValue)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
+type byteSliceHandler struct {
+	handlerFunc interface{}
+}
+
+func (b byteSliceHandler) handleRequest(w http.ResponseWriter, r *http.Request, logger Logger, endpoint endpointData) {
+	attribs, err := getCallAttributes(w, r, endpoint)
+	if err != nil {
+		handleError(r.Context(), w, logger, err)
+		return
+	}
+	value := reflect.ValueOf(b.handlerFunc)
+	result := value.Call(attribs)
+
+	responseValue := result[0].Bytes()
 
 	if len(responseValue) == 0 {
 		w.WriteHeader(http.StatusNoContent)

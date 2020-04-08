@@ -2,8 +2,10 @@ package example
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/middleware"
 	"github.com/mmbednarek/smartapi"
@@ -61,6 +63,22 @@ func (a *API) Init() {
 	},
 		smartapi.Context(),
 	)
+
+	a.With(middleware.DefaultLogger).Route("/base64", func(r smartapi.Router) {
+		r.Post("/encode", base64.StdEncoding.EncodeToString,
+			smartapi.ByteSliceBody(),
+		)
+		r.Post("/decode", base64.StdEncoding.DecodeString,
+			smartapi.StringBody(),
+		)
+	})
+
+	a.Route("/str", func(r smartapi.Router) {
+		r.Post("/cmp", strings.Compare,
+			smartapi.QueryParam("a"),
+			smartapi.QueryParam("b"),
+		)
+	})
 
 	a.Get("/test", func(name string, cookies smartapi.Cookies, headers smartapi.Headers) error {
 		cookies.Add(&http.Cookie{

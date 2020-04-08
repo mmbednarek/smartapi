@@ -59,10 +59,26 @@ func checkHandler(handlerFunc interface{}, arguments []Argument, writesResponse 
 		return noResponseHandler{handlerFunc: handlerFunc}, nil
 	case 1:
 		outValue := fnType.Out(0)
-		if !outValue.Implements(errType) {
-			return nil, errors.New("expect an error type in return arguments")
+		if outValue.Implements(errType) {
+			return errorOnlyHandler{handlerFunc: handlerFunc}, nil
 		}
-		return errorOnlyHandler{handlerFunc: handlerFunc}, nil
+
+		value := fnType.Out(0)
+		switch value.Kind() {
+		case reflect.String:
+			return stringHandler{handlerFunc: handlerFunc}, nil
+		case reflect.Slice:
+			if value == byteType {
+				return byteSliceHandler{handlerFunc: handlerFunc}, nil
+			}
+			fallthrough
+		case reflect.Ptr, reflect.Interface:
+			return ptrHandler{handlerFunc: handlerFunc}, nil
+		case reflect.Struct, reflect.Int:
+			return structHandler{handlerFunc: handlerFunc}, nil
+		}
+
+		return nil, errors.New("unsupported return type")
 	case 2:
 		if writesResponse {
 			return nil, errors.New("cannot write response and return response")
@@ -74,7 +90,6 @@ func checkHandler(handlerFunc interface{}, arguments []Argument, writesResponse 
 		}
 
 		value := fnType.Out(0)
-
 		switch value.Kind() {
 		case reflect.String:
 			return stringErrorHandler{handlerFunc: handlerFunc}, nil
@@ -85,7 +100,7 @@ func checkHandler(handlerFunc interface{}, arguments []Argument, writesResponse 
 			fallthrough
 		case reflect.Ptr, reflect.Interface:
 			return ptrErrorHandler{handlerFunc: handlerFunc}, nil
-		case reflect.Struct:
+		case reflect.Struct, reflect.Int:
 			return structErrorHandler{handlerFunc: handlerFunc}, nil
 		}
 
