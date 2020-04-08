@@ -814,6 +814,49 @@ func TestAttributes(t *testing.T) {
 			responseBody: []byte(`{"status":400,"reason":"missing required header X-Test1"}` + "\n"),
 		},
 		{
+			name: "Header As ByteSlice",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				request.Header.Set("X-Test1", "foo")
+				request.Header.Set("X-Test2", "bar")
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(test1, test2 []byte) error {
+					require.Equal(t, []byte("foo"), test1)
+					require.Equal(t, []byte("bar"), test2)
+					return nil
+				},
+					smartapi.AsByteSlice(smartapi.Header("X-Test1")),
+					smartapi.AsByteSlice(smartapi.Header("X-Test2")),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "Required Header Error As Byte Slice",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Post("/test", func(test1 []byte) error {
+					return nil
+				},
+					smartapi.AsByteSlice(smartapi.RequiredHeader("X-Test1")),
+				)
+			},
+			responseCode: http.StatusBadRequest,
+			responseBody: []byte(`{"status":400,"reason":"missing required header X-Test1"}` + "\n"),
+		},
+		{
 			name: "Header As Int",
 			request: func() *http.Request {
 				request, err := http.NewRequest("POST", "/test", nil)
@@ -1364,6 +1407,59 @@ func TestHandlers(t *testing.T) {
 			responseBody: nil,
 		},
 		{
+			name: "String Only Handler",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func() string {
+					return "foobar"
+				})
+			},
+			responseCode: http.StatusOK,
+			responseBody: []byte("foobar"),
+		},
+		{
+			name: "String Only Attribute Error",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func(test string) string {
+					return "foobar"
+				},
+					smartapi.RequiredHeader("test"),
+				)
+			},
+			responseCode: http.StatusBadRequest,
+			responseBody: []byte("{\"status\":400,\"reason\":\"missing required header test\"}\n"),
+		},
+		{
+			name: "String Only No Content",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func() string {
+					return ""
+				})
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
 
 			name: "Byte Slice Handler",
 			request: func() *http.Request {
@@ -1432,6 +1528,62 @@ func TestHandlers(t *testing.T) {
 			api: func(api *smartapi.Server) {
 				api.Get("/test", func() ([]byte, error) {
 					return nil, nil
+				})
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+
+			name: "Byte Slice Only Handler",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func() []byte {
+					return []byte{1, 2, 45, 23}
+				})
+			},
+			responseCode: http.StatusOK,
+			responseBody: []byte{1, 2, 45, 23},
+		},
+		{
+
+			name: "Byte Slice Only Handler Bad Request",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func(header string) []byte {
+					return []byte{1, 2, 45, 23}
+				},
+					smartapi.RequiredHeader("Some-Header"),
+				)
+			},
+			responseCode: http.StatusBadRequest,
+			responseBody: []byte(`{"status":400,"reason":"missing required header Some-Header"}` + "\n"),
+		},
+		{
+
+			name: "Byte Slice No Content",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func() []byte {
+					return nil
 				})
 			},
 			responseCode: http.StatusNoContent,
@@ -1535,6 +1687,88 @@ func TestHandlers(t *testing.T) {
 						Field1: "test",
 						Field2: make(chan int),
 					}, nil
+				})
+			},
+			responseCode: http.StatusInternalServerError,
+			responseBody: []byte(`{"status":500,"reason":"cannot encode response"}` + "\n"),
+		},
+		{
+			name: "Struct only handler",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type bar struct {
+					Field1 string `json:"field1"`
+					Field2 string `json:"field2"`
+				}
+				type foo struct {
+					Field1 string `json:"field1"`
+					Field2 bar    `json:"field2"`
+				}
+
+				api.Get("/test", func() foo {
+					return foo{
+						Field1: "foo",
+						Field2: bar{
+							Field1: "bar",
+							Field2: "foo",
+						},
+					}
+				})
+			},
+			responseCode: http.StatusOK,
+			responseBody: []byte(`{"field1":"foo","field2":{"field1":"bar","field2":"foo"}}` + "\n"),
+		},
+		{
+			name: "Struct only handler bad request",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type foo struct {
+					Field1 string `json:"field1"`
+					Field2 string `json:"field2"`
+				}
+				api.Get("/test", func(h string) foo {
+					return foo{
+						Field1: "foo",
+						Field2: "bar",
+					}
+				},
+					smartapi.RequiredHeader("Some-Header"),
+				)
+			},
+			responseCode: http.StatusBadRequest,
+			responseBody: []byte(`{"status":400,"reason":"missing required header Some-Header"}` + "\n"),
+		},
+		{
+			name: "Struct handler marshal error",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type foo struct {
+					Field1 string   `json:"field1"`
+					Field2 chan int `json:"\x00"`
+				}
+				api.Get("/test", func() foo {
+					return foo{
+						Field1: "test",
+						Field2: make(chan int),
+					}
 				})
 			},
 			responseCode: http.StatusInternalServerError,
@@ -1665,6 +1899,109 @@ func TestHandlers(t *testing.T) {
 			responseBody: []byte(`{"status":500,"reason":"cannot encode response"}` + "\n"),
 		},
 		{
+			name: "Pointer only handler",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type bar struct {
+					Field1 string `json:"field1"`
+					Field2 string `json:"field2"`
+				}
+				type foo struct {
+					Field1 string `json:"field1"`
+					Field2 bar    `json:"field2"`
+				}
+
+				api.Get("/test", func() *foo {
+					return &foo{
+						Field1: "foo",
+						Field2: bar{
+							Field1: "bar",
+							Field2: "foo",
+						},
+					}
+				})
+			},
+			responseCode: http.StatusOK,
+			responseBody: []byte(`{"field1":"foo","field2":{"field1":"bar","field2":"foo"}}` + "\n"),
+		},
+		{
+			name: "Pointer only handler bad request",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type foo struct {
+					Field1 string `json:"field1"`
+					Field2 string `json:"field2"`
+				}
+				api.Get("/test", func(h string) *foo {
+					return &foo{
+						Field1: "foo",
+						Field2: "bar",
+					}
+				},
+					smartapi.RequiredHeader("Some-Header"),
+				)
+			},
+			responseCode: http.StatusBadRequest,
+			responseBody: []byte(`{"status":400,"reason":"missing required header Some-Header"}` + "\n"),
+		},
+		{
+			name: "Pointer only handler no result",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type foo struct {
+					Field1 string `json:"field1"`
+					Field2 string `json:"field2"`
+				}
+				api.Get("/test", func() *foo {
+					return nil
+				})
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "Pointer only handler marshal error",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type foo struct {
+					Field1 string   `json:"field1"`
+					Field2 chan int `json:"\x00"`
+				}
+				api.Get("/test", func() *foo {
+					return &foo{
+						Field1: "test",
+						Field2: make(chan int),
+					}
+				})
+			},
+			responseCode: http.StatusInternalServerError,
+			responseBody: []byte(`{"status":500,"reason":"cannot encode response"}` + "\n"),
+		},
+		{
 			name: "Interface handler",
 			request: func() *http.Request {
 				request, err := http.NewRequest("GET", "/test", nil)
@@ -1717,6 +2054,45 @@ func TestHandlers(t *testing.T) {
 			},
 			responseCode: http.StatusOK,
 			responseBody: []byte(`["foo","bar","rab","oof"]` + "\n"),
+		},
+		{
+			name: "Slice only handler",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func() []string {
+					return []string{
+						"foo",
+						"bar",
+						"rab",
+						"oof",
+					}
+				})
+			},
+			responseCode: http.StatusOK,
+			responseBody: []byte(`["foo","bar","rab","oof"]` + "\n"),
+		},
+		{
+			name: "Int only handler",
+			request: func() *http.Request {
+				request, err := http.NewRequest("GET", "/test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				api.Get("/test", func() int {
+					return 16
+				})
+			},
+			responseCode: http.StatusOK,
+			responseBody: []byte("16\n"),
 		},
 	}
 
@@ -1807,11 +2183,11 @@ func TestHandlersErrors(t *testing.T) {
 		{
 			name: "Invalid return type",
 			api: func(api *smartapi.Server) {
-				api.Get("/test", func() int {
-					return 0
+				api.Get("/test", func() chan int {
+					return nil
 				})
 			},
-			expect: errors.New("endpoint /test: expect an error type in return arguments"),
+			expect: errors.New("endpoint /test: unsupported return type"),
 		},
 		{
 			name: "Invalid return type 2",
@@ -2314,6 +2690,46 @@ func TestHandlersErrors(t *testing.T) {
 				)
 			},
 			expect: errors.New("endpoint /v1/user: (argument 0) AsInt() requires an argument param"),
+		},
+		{
+			name: "As byte slice invalid type",
+			api: func(api *smartapi.Server) {
+				api.Post("/v1/user", func(s string) {
+				},
+					smartapi.AsByteSlice(smartapi.Header("Foo")),
+				)
+			},
+			expect: errors.New("endpoint /v1/user: (argument 0) argument must be a byte slice"),
+		},
+		{
+			name: "As byte slice correct inner type",
+			api: func(api *smartapi.Server) {
+				api.Post("/v1/user", func(s []byte) {
+				},
+					smartapi.AsByteSlice(smartapi.JSONBodyDirect("")),
+				)
+			},
+			expect: nil,
+		},
+		{
+			name: "As byte slice incorrect inner type",
+			api: func(api *smartapi.Server) {
+				api.Post("/v1/user", func(s []byte) {
+				},
+					smartapi.AsByteSlice(smartapi.JSONBodyDirect(0)),
+				)
+			},
+			expect: errors.New("endpoint /v1/user: (argument 0) argument must accept a string"),
+		},
+		{
+			name: "As byte slice not an argument",
+			api: func(api *smartapi.Server) {
+				api.Post("/v1/user", func(s []byte) {
+				},
+					smartapi.AsByteSlice(smartapi.ResponseStatus(http.StatusAccepted)),
+				)
+			},
+			expect: errors.New("endpoint /v1/user: (argument 0) AsByteSlice() requires an argument param"),
 		},
 	}
 

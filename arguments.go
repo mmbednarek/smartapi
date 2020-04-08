@@ -727,3 +727,40 @@ func AsInt(param EndpointParam) EndpointParam {
 
 	return asIntArgument{arg: arg}
 }
+
+type asByteSliceArgument struct {
+	arg Argument
+}
+
+func (a asByteSliceArgument) options() endpointOptions {
+	return a.arg.options()
+}
+
+func (a asByteSliceArgument) checkArg(arg reflect.Type) error {
+	if arg != byteSliceType {
+		return errors.New("argument must be a byte slice")
+	}
+	return nil
+}
+
+func (a asByteSliceArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
+	v, err := a.arg.getValue(w, r)
+	if err != nil {
+		return reflect.Value{}, err
+	}
+
+	return reflect.ValueOf([]byte(v.String())), nil
+}
+
+func AsByteSlice(param EndpointParam) EndpointParam {
+	if !param.options().has(flagArgument) {
+		return errorEndpointParam{err: errors.New("AsByteSlice() requires an argument param")}
+	}
+
+	arg := param.(Argument)
+	if err := arg.checkArg(reflect.TypeOf("")); err != nil {
+		return errorEndpointParam{err: errors.New("argument must accept a string")}
+	}
+
+	return asByteSliceArgument{arg: arg}
+}
