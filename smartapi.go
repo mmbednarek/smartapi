@@ -47,15 +47,13 @@ var methodNames = []string{
 	MethodTrace:   "TRACE",
 }
 
-type defaultLogger struct{
-	log log.Logger
-}
+type defaultLogger struct{}
 
-func (l defaultLogger) LogApiError(ctx context.Context, err ApiError) {
+func (defaultLogger) LogApiError(ctx context.Context, err ApiError) {
 	log.Printf("[%d] %s", err.Status(), err.Error())
 }
 
-func (l defaultLogger) LogError(ctx context.Context, err error) {
+func (defaultLogger) LogError(ctx context.Context, err error) {
 	log.Print(err)
 }
 
