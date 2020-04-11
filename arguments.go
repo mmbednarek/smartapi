@@ -639,7 +639,7 @@ func requestStruct(structType reflect.Type) (tagStructArgument, error) {
 			continue
 		}
 
-		fieldArg, err := parseArgument(tag, f)
+		fieldArg, err := parseArgument(tag, f.Type)
 		if err != nil {
 			return tagStructArgument{}, fmt.Errorf("(struct field %s) %w", f.Name, err)
 		}

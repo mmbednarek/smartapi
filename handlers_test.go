@@ -2,6 +2,8 @@ package smartapi
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
@@ -50,4 +52,63 @@ func Test_handleErrorValue(t *testing.T) {
 			require.Equal(t, tt.responseBody, rr.Body.String())
 		})
 	}
+}
+
+type badResponseWriter struct {
+	t *testing.T
+}
+
+func (b badResponseWriter) Header() http.Header {
+	return nil
+}
+
+func (b badResponseWriter) Write([]byte) (int, error) {
+	return 0, errors.New("something happened")
+}
+
+func (b badResponseWriter) WriteHeader(statusCode int) {
+	require.Equal(b.t, http.StatusInternalServerError, statusCode)
+}
+
+func Test_HandlerWrite(t *testing.T) {
+	t.Run("StringError", func(t *testing.T) {
+		s := stringErrorHandler{
+			handlerFunc: func() (string, error) {
+				return "test", nil
+			},
+		}
+		s.handleRequest(badResponseWriter{t: t}, &http.Request{}, nil, endpointData{
+			returnStatus: 200,
+		})
+	})
+	t.Run("String", func(t *testing.T) {
+		s := stringHandler{
+			handlerFunc: func() string {
+				return "test"
+			},
+		}
+		s.handleRequest(badResponseWriter{t: t}, &http.Request{}, nil, endpointData{
+			returnStatus: 200,
+		})
+	})
+	t.Run("ByteSliceError", func(t *testing.T) {
+		s := byteSliceErrorHandler{
+			handlerFunc: func() ([]byte, error) {
+				return []byte("error"), nil
+			},
+		}
+		s.handleRequest(badResponseWriter{t: t}, &http.Request{}, nil, endpointData{
+			returnStatus: 200,
+		})
+	})
+	t.Run("ByteSlice", func(t *testing.T) {
+		s := byteSliceHandler{
+			handlerFunc: func() ([]byte, error) {
+				return []byte("error"), nil
+			},
+		}
+		s.handleRequest(badResponseWriter{t: t}, &http.Request{}, nil, endpointData{
+			returnStatus: 200,
+		})
+	})
 }

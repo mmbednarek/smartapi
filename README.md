@@ -20,36 +20,81 @@ This example returns a greeting with a name based on a query param `name`.
 package main
 
 import (
-	"fmt"
+	"fmt" 
+    "log"
+    "net/http"
 
 	"github.com/mmbednarek/smartapi"
 )
 
-type API struct {
-	*smartapi.Server
-}
-
-func (a *API) Init() {
-	a.Get("/greeting", a.Greeting,
+func MountAPI() http.Handler {
+    r := smartapi.NewRouter()
+	r.Get("/greeting", Greeting,
 		smartapi.QueryParam("name"),
 	)
+
+    return r.MustHandler()
 }
 
-func (a *API) Greeting(name string) (string, error) {
-	return fmt.Sprintf("Hello %s!\n", name), nil
+func Greeting(name string) string {
+	return fmt.Sprintf("Hello %s!\n", name)
 }
 
 func main() {
-	api := &API{
-		Server: smartapi.NewServer(smartapi.DefaultLogger),
-	}
-	panic(smartapi.StartAPI(api, ":8080"))
+	log.Fatal(http.ListenAndServe(":8080", MountAPI()))
 }
 ```
 
 ```bash
 $ curl '127.0.0.1:8080/greeting?name=Johnny'
 Hello Johnny!
+```
+
+## It's possible to use even standard Go functions
+
+But it's a good practice to use your own handler functions for your api.
+
+```go
+package main
+
+import (
+    "encoding/base32"
+    "encoding/base64"
+    "log"
+    "net/http"
+
+    "github.com/mmbednarek/smartapi"
+)
+
+func MountAPI() http.Handler {
+    r := smartapi.NewRouter()
+
+	r.Route("/encode", func(r smartapi.Router) {
+        r.Post("/base64", base64.StdEncoding.EncodeToString)
+        r.Post("/base32", base32.StdEncoding.EncodeToString)
+    }, smartapi.ByteSliceBody())
+	r.Route("/decode", func(r smartapi.Router) {
+        r.Post("/base64", base64.StdEncoding.DecodeString)
+        r.Post("/base32", base32.StdEncoding.DecodeString)
+    }, smartapi.StringBody())
+
+    return r.MustHandler()
+}
+
+func main() {
+	log.Fatal(http.ListenAndServe(":8080", MountAPI()))
+}
+```
+
+```bash
+~ $ curl 127.0.0.1:8080/encode/base64 -d 'smartAPI'
+c21hcnRBUEk=
+~ $ curl 127.0.0.1:8080/encode/base32 -d 'smartAPI'
+ONWWC4TUIFIES===
+~ $ curl 127.0.0.1:8080/decode/base64 -d 'c21hcnRBUEk='
+smartAPI
+~ $ curl 127.0.0.1:8080/decode/base32 -d 'ONWWC4TUIFIES==='
+smartAPI
 ```
 
 ### Service example
@@ -60,7 +105,11 @@ You can use SmartAPI with service layer methods as shown here.
 package main
 
 import (
-	"github.com/mmbednarek/smartapi"
+    "log"
+    "net/http"
+
+
+    "github.com/mmbednarek/smartapi"
 )
 
 type Date struct {
@@ -83,31 +132,30 @@ type Service interface {
 	UpdateUser(session string, user *User) error
 }
 
-func newAPI(service Service) *smartapi.Server {
-	api := smartapi.NewServer(smartapi.DefaultLogger)
+func newHandler(service Service) http.Handler {
+	r := smartapi.NewRouter()
 
-	api.Post("/user", service.RegisterUser,
+	r.Post("/user", service.RegisterUser,
 		smartapi.JSONBody(User{}),
 	)
-	api.Post("/user/auth", service.Auth,
+	r.Post("/user/auth", service.Auth,
 		smartapi.PostQueryParam("login"),
 		smartapi.PostQueryParam("password"),
 	)
-	api.Get("/user", service.GetUserData,
+	r.Get("/user", service.GetUserData,
 		smartapi.Header("X-Session-ID"),
 	)
-	api.Patch("/user", service.UpdateUser,
+	r.Patch("/user", service.UpdateUser,
 		smartapi.Header("X-Session-ID"),
 		smartapi.JSONBody(User{}),
 	)
 
-	return api
+	return r.MustHandler()
 }
 
 func main() {
 	svr := service.NewService() // Your service implementation
-	api := newAPI(svr)
-	panic(api.Start(":8080"))
+	log.Fatal(http.ListenAndServe(":8080", newHandler(svr)))
 }
 ```
 
@@ -121,7 +169,7 @@ Middlewares can be used just as in Chi. `Use(...)` appends middlewares to be use
 Routing works similarity to Chi routing. Parameters can be prepended to be used in all endpoints in that route.
 
 ```go
-a.Route("/v1/foo", func(r smartapi.Router) {
+r.Route("/v1/foo", func(r smartapi.Router) {
     r.Route("/bar", func(r smartapi.Router) {
         r.Get("/test", func(ctx context.Context, foo string, test string) {
             ...
@@ -149,7 +197,7 @@ No additional variadic arguments are required for legacy handler to be used.
 A handler function with error only return argument will return empty response body with 204 NO CONTENT status as default.
 
 ```go
-a.Post("/test", func() error {
+r.Post("/test", func() error {
     return nil
 })
 ```
@@ -159,7 +207,7 @@ a.Post("/test", func() error {
 Returned string will we written directly into a function body.
 
 ```go
-a.Get("/test", func() (string, error) {
+r.Get("/test", func() (string, error) {
     return "Hello World", nil
 })
 ```
@@ -169,7 +217,7 @@ a.Get("/test", func() (string, error) {
 Just as with the string, the slice will we written directly into a function body.
 
 ```go
-a.Get("/test", func() ([]byte, error) {
+r.Get("/test", func() ([]byte, error) {
     return []byte("Hello World"), nil
 })
 ```
@@ -179,7 +227,7 @@ a.Get("/test", func() ([]byte, error) {
 A struct, a pointer, an interface or a slice different than a byte slice with be encoded into a json format.
 
 ```go
-a.Get("/test", func() (interface{}, error) {
+r.Get("/test", func() (interface{}, error) {
     return struct{
         Name string `json:"name"`
         Age  int    `json:"age"`
@@ -194,7 +242,7 @@ The API error contains an error message and an error reason. The message will be
 The reason will be returned in the response body. You can also return ordinary errors. They are treated as if their status code was 500.
 
 ```go
-a.Get("/order/{id}", func(orderID string) (*Order, error) {
+r.Get("/order/{id}", func(orderID string) (*Order, error) {
     order, err := db.GetOrder(orderID)
     if err != nil {
         if errors.Is(err, ErrNoSuchOrder) {
@@ -231,7 +279,7 @@ type headers struct {
     Foo string `smartapi:"header=X-Foo"`
     Bar string `smartapi:"header=X-Bar"`
 }
-a.Post("/user", func(h *headers) (string, error) {
+r.Post("/user", func(h *headers) (string, error) {
     return fmt.Sprintf("Foo: %s, Bar: %s\n", h.Foo, h.Bar), nil
 },
     smartapi.RequestStruct(headers{}),
@@ -261,14 +309,17 @@ Every argument has a tag value equivalent
 | `response_writer`   | `ResponseWriter()`  | `http.ResponseWriter` |
 | `request`   | `Request()`  | `*http.Request` |
 | `request_struct`   | `RequestStruct()`  | `struct{...}` |
+| `as_int=header=name`   | `AsInt(Header("name")`  | `int` |
+| `as_byte_slice=header=name`   | `AsByteSlice(Header("name")`  | `[]byte` |
 
 ### JSON Body
 
 JSON Body unmarshals the request's body into a given structure type.
-Expects a pointer to that structure as a function argument. (You can use JSONBodyDirect to pass into it a structure)
+Expects a pointer to that structure as a function argument.
+If you want to use the object directly (not as a pointer) you can use JSONBodyDirect.
 
 ```go
-a.Post("/user", func(u *User) error {
+r.Post("/user", func(u *User) error {
     return db.AddUser(u)
 },
     smartapi.JSONBody(User{}),
@@ -280,7 +331,7 @@ a.Post("/user", func(u *User) error {
 String body passes the request's body as a string.
 
 ```go
-a.Post("/user", func(body string) error {
+r.Post("/user", func(body string) error {
     fmt.Printf("Request body: %s\n", body)
     return nil
 },
@@ -293,7 +344,7 @@ a.Post("/user", func(body string) error {
 Byte slice body passes the request's body as a byte slice.
 
 ```go
-a.Post("/user", func(body []byte) error {
+r.Post("/user", func(body []byte) error {
     fmt.Printf("Request body: %s\n", string(body))
     return nil
 },
@@ -306,7 +357,7 @@ a.Post("/user", func(body []byte) error {
 Byte reader body passes the io.Reader interface to read request's body.
 
 ```go
-a.Post("/user", func(body io.Reader) error {
+r.Post("/user", func(body io.Reader) error {
     buff, err := ioutil.ReadAll()
     if err != nil {
         return err
@@ -322,7 +373,7 @@ a.Post("/user", func(body io.Reader) error {
 Classic `http.ResponseWriter` can be used as well.
 
 ```go
-a.Post("/user", func(w http.ResponseWriter) error {
+r.Post("/user", func(w http.ResponseWriter) error {
     _, err := w.Write([]byte("RESPONSE"))
     if err != nil {
         return err
@@ -338,7 +389,7 @@ a.Post("/user", func(w http.ResponseWriter) error {
 Classic `*http.Request` can be passed as an argument.
 
 ```go
-a.Post("/user", func(r *http.Request) error {
+r.Post("/user", func(r *http.Request) error {
     buff, err := ioutil.ReadAll(r.Body)
     if err != nil {
         return err
@@ -355,7 +406,7 @@ a.Post("/user", func(r *http.Request) error {
 Query param reads the value of the selected param and passes it as a string to function.
 
 ```go
-a.Get("/user", func(name string) (*User, error) {
+r.Get("/user", func(name string) (*User, error) {
     return db.GetUser(name)
 },
     smartapi.QueryParam("name"),
@@ -367,7 +418,7 @@ a.Get("/user", func(name string) (*User, error) {
 Like `QueryParam()` but returns 400 BAD REQUEST when empty.
 
 ```go
-a.Get("/user", func(name string) (*User, error) {
+r.Get("/user", func(name string) (*User, error) {
     return db.GetUser(name)
 },
     smartapi.RequiredQueryParam("name"),
@@ -379,7 +430,7 @@ a.Get("/user", func(name string) (*User, error) {
 Reads a query param from requests body.
 
 ```go
-a.Get("/user", func(name string) (*User, error) {
+r.Get("/user", func(name string) (*User, error) {
     return db.GetUser(name)
 },
     smartapi.PostQueryParam("name"),
@@ -392,7 +443,7 @@ a.Get("/user", func(name string) (*User, error) {
 Like `PostQueryParam()` but returns 400 BAD REQUEST when empty.
 
 ```go
-a.Get("/user", func(name string) (*User, error) {
+r.Get("/user", func(name string) (*User, error) {
     return db.GetUser(name)
 },
     smartapi.RequiredPostQueryParam("name"),
@@ -405,7 +456,7 @@ a.Get("/user", func(name string) (*User, error) {
 URL uses read chi's URL param and passes it into a function as a string.
 
 ```go
-a.Get("/user/{name}", func(name string) (*User, error) {
+r.Get("/user/{name}", func(name string) (*User, error) {
     return db.GetUser(name)
 },
     smartapi.URLParam("name"),
@@ -417,7 +468,7 @@ a.Get("/user/{name}", func(name string) (*User, error) {
 Header reads the value of the selected request header and passes it as a string to function.
 
 ```go
-a.Get("/example", func(test string) (string, error) {
+r.Get("/example", func(test string) (string, error) {
     return fmt.Sprintf("The X-Test headers is %s", test), nil
 },
     smartapi.Header("X-Test"),
@@ -429,7 +480,7 @@ a.Get("/example", func(test string) (string, error) {
 Like `Header()`, but responds with 400 BAD REQUEST, if the header is not present.
 
 ```go
-a.Get("/example", func(test string) (string, error) {
+r.Get("/example", func(test string) (string, error) {
     return fmt.Sprintf("The X-Test headers is %s", test), nil
 },
     smartapi.RequiredHeader("X-Test"),
@@ -441,7 +492,7 @@ a.Get("/example", func(test string) (string, error) {
 Reads a cookie from the request and passes the value into a function as a string.
 
 ```go
-a.Get("/example", func(c string) (string, error) {
+r.Get("/example", func(c string) (string, error) {
     return fmt.Sprintf("cookie: %s", c)
 },
     smartapi.Cookie("cookie"),
@@ -453,7 +504,7 @@ a.Get("/example", func(c string) (string, error) {
 Like `Cookie()`, but returns 400 BAD REQUEST when empty.
 
 ```go
-a.Get("/example", func(c string) (string, error) {
+r.Get("/example", func(c string) (string, error) {
     return fmt.Sprintf("cookie: %s", c)
 },
     smartapi.RequiredCookie("cookie"),
@@ -465,7 +516,7 @@ a.Get("/example", func(c string) (string, error) {
 Context passes r.Context() into a function.
 
 ```go
-a.Get("/example", func(ctx context.Context) (string, error) {
+r.Get("/example", func(ctx context.Context) (string, error) {
     return fmt.Sprintf("ctx: %s", ctx)
 },
     smartapi.Context(),
@@ -477,7 +528,7 @@ a.Get("/example", func(ctx context.Context) (string, error) {
 Response headers allows an endpoint to add response headers.
 
 ```go
-a.Get("/example", func(headers smartapi.Headers) error {
+r.Get("/example", func(headers smartapi.Headers) error {
     headers.Set("Api-Version", "1.2.3")
     return nil
 },
@@ -490,13 +541,41 @@ a.Get("/example", func(headers smartapi.Headers) error {
 Response cookies allows an endpoint to easily add Set-Cookie header.
 
 ```go
-a.Get("/example", func(cookies smartapi.Cookies) error {
+r.Get("/example", func(cookies smartapi.Cookies) error {
     cookies.Add(&http.Cookie{Name: "Foo", Value: "Bar"})
     return nil
 },
     smartapi.ResponseCookies(),
 )
 ```
+
+## Casts
+
+Request attributes can be automatically casted to desired type.
+
+### AsInt
+
+```go
+r.Get("/example", func(value int) error {
+    ...
+    return nil
+},
+    smartapi.AsInt(smartapi.Header("Value")),
+)
+```
+
+### AsByteSlice
+
+```go
+r.Get("/example", func(value []byte) error {
+    ...
+    return nil
+},
+    smartapi.AsByteSlice(smartapi.Header("Value")),
+)
+```
+
+Conversion to int
 
 ## Endpoint attributes
 
@@ -506,7 +585,7 @@ ResponseStatus allows the response status to be set for endpoints with empty res
 Default status is 204 NO CONTENT.
 
 ```go
-a.Get("/example", func() error {
+r.Get("/example", func() error {
     return nil
 },
     smartapi.ResponseStatus(http.StatusCreated),
