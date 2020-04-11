@@ -1,7 +1,6 @@
 package smartapi
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -36,18 +35,6 @@ func NewServer(logger Logger) *Server {
 			logger:    logger,
 		},
 	}
-}
-
-// Handler returns an http.Handler of the API
-func (s *Server) Handler() (http.Handler, error) {
-	if len(s.errors) != 0 {
-		errMsg := s.errors[0].Error()
-		for _, e := range s.errors[1:] {
-			errMsg += ", " + e.Error()
-		}
-		return nil, errors.New(errMsg)
-	}
-	return s.router.chiRouter, nil
 }
 
 // Start starts the api

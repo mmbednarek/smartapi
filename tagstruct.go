@@ -2,11 +2,12 @@ package smartapi
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 )
 
-func parseArgument(tag string, field reflect.StructField) (Argument, error) {
+func parseArgument(tag string, fieldType reflect.Type) (Argument, error) {
 	var kind string
 	var data string
 	eqAt := strings.Index(tag, "=")
@@ -16,21 +17,21 @@ func parseArgument(tag string, field reflect.StructField) (Argument, error) {
 	} else {
 		kind = tag
 	}
-	a, err := getArgument(kind, data, field)
+	a, err := getArgument(kind, data, fieldType)
 	if err != nil {
 		return nil, err
 	}
 	return a, nil
 }
 
-func getArgument(kind string, data string, field reflect.StructField) (Argument, error) {
+func getArgument(kind string, data string, fieldType reflect.Type) (Argument, error) {
 	switch kind {
 	case "header":
 		return headerArgument{name: data}, nil
 	case "r_header":
 		return requiredHeaderArgument{name: data}, nil
 	case "json_body":
-		return jsonBodyDirectArgument{typ: field.Type}, nil
+		return jsonBodyDirectArgument{typ: fieldType}, nil
 	case "string_body":
 		return stringBodyArgument{}, nil
 	case "byte_slice_body":
@@ -59,12 +60,32 @@ func getArgument(kind string, data string, field reflect.StructField) (Argument,
 		return responseWriterArgument{}, nil
 	case "request":
 		return fullRequestArgument{}, nil
+	case "as_int":
+		arg, err := parseArgument(data, reflect.TypeOf(""))
+		if err != nil {
+			return nil, fmt.Errorf("(as int) %w", err)
+		}
+		asInt := AsInt(arg)
+		if asInt.options().has(flagError) {
+			return nil, fmt.Errorf("(as int) %w", asInt.(errorEndpointParam).err)
+		}
+		return asInt.(Argument), nil
+	case "as_byte_slice":
+		arg, err := parseArgument(data, reflect.TypeOf(""))
+		if err != nil {
+			return nil, fmt.Errorf("(as byte slice) %w", err)
+		}
+		asByteSlice := AsByteSlice(arg)
+		if asByteSlice.options().has(flagError) {
+			return nil, fmt.Errorf("(as byte slice) %w", asByteSlice.(errorEndpointParam).err)
+		}
+		return AsByteSlice(arg).(Argument), nil
 	case "request_struct":
-		if field.Type.Kind() != reflect.Ptr {
-			if field.Type.Kind() != reflect.Struct {
+		if fieldType.Kind() != reflect.Ptr {
+			if fieldType.Kind() != reflect.Struct {
 				return nil, errors.New("invalid type of request_struct")
 			}
-			s, err := requestStruct(field.Type)
+			s, err := requestStruct(fieldType)
 			if err != nil {
 				return nil, err
 			}
@@ -74,7 +95,7 @@ func getArgument(kind string, data string, field reflect.StructField) (Argument,
 				arguments:  s.arguments,
 			}, nil
 		}
-		return requestStruct(field.Type.Elem())
+		return requestStruct(fieldType.Elem())
 	}
 	return nil, errors.New("unsupported tag")
 }

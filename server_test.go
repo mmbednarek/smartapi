@@ -484,6 +484,8 @@ func TestAttributes(t *testing.T) {
 				request.Header.Set("X-Example", "header")
 				request.Header.Set("X-Req-Example", "req_header")
 				request.Header.Set("X-Another-Example", "other_header")
+				request.Header.Set("Num", "14")
+				request.Header.Set("Bytes", "bytes")
 				request.Header.Set("Cookie", (&http.Cookie{Name: "User-Agent", Value: "Mozilla/5.0"}).String())
 				return request
 			},
@@ -491,6 +493,8 @@ func TestAttributes(t *testing.T) {
 				type exampleStruct struct {
 					Header          string              `smartapi:"header=X-Example"`
 					RequiredHeader  string              `smartapi:"r_header=X-Req-Example"`
+					NumHeader       int                 `smartapi:"as_int=header=Num"`
+					BytesHeader     []byte              `smartapi:"as_byte_slice=header=Bytes"`
 					Ctx             context.Context     `smartapi:"context"`
 					URLParam        string              `smartapi:"url_param=param"`
 					Fill            int                 ``
@@ -513,6 +517,8 @@ func TestAttributes(t *testing.T) {
 				api.Post("/test/{param}", func(es *exampleStruct) {
 					require.Equal(t, "header", es.Header)
 					require.Equal(t, "req_header", es.RequiredHeader)
+					require.Equal(t, 14, es.NumHeader)
+					require.Equal(t, []byte("bytes"), es.BytesHeader)
 					require.NotNil(t, es.Ctx)
 					require.Equal(t, "url", es.URLParam)
 					require.Equal(t, "query", es.QueryParam)
@@ -2120,21 +2126,21 @@ func TestHandlers(t *testing.T) {
 func TestHandlersErrors(t *testing.T) {
 	type test struct {
 		name   string
-		api    func(api *smartapi.Server)
+		api    func(api smartapi.Router)
 		expect error
 	}
 
 	tests := []test{
 		{
 			name: "Nil handler",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", nil)
 			},
 			expect: errors.New("endpoint /test: nil handler"),
 		},
 		{
 			name: "Too many arguments",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", func(value string) error {
 					return nil
 				})
@@ -2143,7 +2149,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Too little arguments",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", func() error {
 					return nil
 				},
@@ -2154,14 +2160,14 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Non function handler",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", 456)
 			},
 			expect: errors.New("endpoint /test: handler must be a function"),
 		},
 		{
 			name: "Only one read argument at a time",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Post("/test", func(str string, bts []byte) (string, error) {
 					return "", nil
 				},
@@ -2173,7 +2179,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Many errors at once",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", 456)
 				api.Get("/foo", "hello")
 				api.Get("/bar", []string{"shit"})
@@ -2182,7 +2188,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Invalid return type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", func() chan int {
 					return nil
 				})
@@ -2191,7 +2197,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Invalid return type 2",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", func() (string, int) {
 					return "", 0
 				})
@@ -2200,7 +2206,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Invalid return type 3",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", func() (struct{}, int) {
 					return struct{}{}, 0
 				})
@@ -2209,7 +2215,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Invalid return type 4",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", func() (*struct{}, int) {
 					return &struct{}{}, 0
 				})
@@ -2218,7 +2224,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Invalid return type 5",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", func() ([]byte, int) {
 					return []byte(""), 0
 				})
@@ -2227,7 +2233,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "QueryParam wrong type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", func(value int) error {
 					return nil
 				},
@@ -2238,7 +2244,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Required QueryParam wrong type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", func(value int) error {
 					return nil
 				},
@@ -2249,7 +2255,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "PostQueryParam wrong type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", func(value int) error {
 					return nil
 				},
@@ -2260,7 +2266,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Required PostQueryParam wrong type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", func(value int) error {
 					return nil
 				},
@@ -2271,7 +2277,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "URLParam wrong type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test/{name}", func(value int) error {
 					return nil
 				},
@@ -2282,7 +2288,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Header wrong type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", func(value int) error {
 					return nil
 				},
@@ -2293,7 +2299,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Tag Struct Error",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				type exampleStruct struct {
 					Value string `smartapi:"header=X-Example"`
 				}
@@ -2306,7 +2312,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Full Request Wrong Type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Post("/test", func(r int) error {
 					return nil
 				},
@@ -2317,7 +2323,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Legacy check fails with response code",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Post("/test", func(w http.ResponseWriter, r *http.Request) {
 					buff, err := ioutil.ReadAll(r.Body)
 					require.NoError(t, err)
@@ -2330,7 +2336,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Required header wrong type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", func(value int) error {
 					return nil
 				},
@@ -2341,7 +2347,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Cookie wrong type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", func(value int) error {
 					return nil
 				},
@@ -2352,7 +2358,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Required Cookie wrong type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", func(value int) error {
 					return nil
 				},
@@ -2363,7 +2369,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "JSON body wrong type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				type s struct {
 					Field string
 				}
@@ -2377,7 +2383,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "JSON body wrong type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				type s struct {
 					Field string
 				}
@@ -2391,7 +2397,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "String body wrong type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", func(value int) error {
 					return nil
 				},
@@ -2402,7 +2408,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Byte slice wrong type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", func(value int) error {
 					return nil
 				},
@@ -2413,7 +2419,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Reader wrong type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", func(value interface{}) error {
 					return nil
 				},
@@ -2424,7 +2430,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Context Wrong Type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Post("/test", func(ctx int) error {
 					return nil
 				},
@@ -2435,7 +2441,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Headers Wrong Type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Post("/test", func(test int) error {
 					return nil
 				},
@@ -2446,7 +2452,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Cookies Wrong Type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Post("/test", func(test int) error {
 					return nil
 				},
@@ -2457,7 +2463,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Response Writer Wrong Type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Post("/test", func(test int) {
 					return
 				},
@@ -2468,7 +2474,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Response Writer Cannot return response",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Post("/test", func(w http.ResponseWriter) (string, error) {
 					_, _ = w.Write([]byte("RESPONSE"))
 					return "string response", nil
@@ -2480,7 +2486,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Invalid return value type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", func() (func(), error) {
 					return func() {
 					}, nil
@@ -2490,7 +2496,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Too many return arguments",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", func() (string, string, error) {
 					return "", "", nil
 				})
@@ -2499,7 +2505,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Tag Struct Non Pointer Type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				type exampleStruct struct {
 					Body string `smartapi:"string_body"`
 				}
@@ -2512,7 +2518,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Tag Struct Wrong Pointer Type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				type exampleStruct struct {
 					Body string `smartapi:"string_body"`
 				}
@@ -2525,11 +2531,11 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Tag Struct Direct Pointer Type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				type exampleStruct struct {
 					Body string `smartapi:"string_body"`
 				}
-				api.Post("/test", func(s *smartapi.Server) {
+				api.Post("/test", func(s smartapi.Router) {
 				},
 					smartapi.RequestStructDirect(exampleStruct{}),
 				)
@@ -2538,7 +2544,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Tag Struct Wrong Field Type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				type exampleStruct struct {
 					Body int `smartapi:"string_body"`
 				}
@@ -2551,7 +2557,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Tag Struct Invalid Tag",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				type exampleStruct struct {
 					Body int `smartapi:"non_existing_tag"`
 				}
@@ -2564,7 +2570,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Tag Struct Direct Not A Struct",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				type exampleStruct struct {
 					Inner int `smartapi:"request_struct"`
 				}
@@ -2577,7 +2583,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Tag Struct Ptr To A Non-Struct",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				type exampleStruct struct {
 					Inner *int `smartapi:"request_struct"`
 				}
@@ -2590,7 +2596,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Tag Struct Inner request struct error",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				type exampleStruct struct {
 					Inner struct {
 						Header int `smartapi:"header=something"`
@@ -2605,7 +2611,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Tag Struct Multiple Readers",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				type exampleStruct struct {
 					StrBody  string `smartapi:"string_body"`
 					ByteBody []byte `smartapi:"byte_slice_body"`
@@ -2619,7 +2625,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Tag Struct Multiple Readers Direct",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				type exampleStruct struct {
 					StrBody  string `smartapi:"string_body"`
 					ByteBody []byte `smartapi:"byte_slice_body"`
@@ -2633,7 +2639,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Router Pass Error",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Route("/v1/user", func(r smartapi.Router) {
 					r.Get("/test", func(qp int) {
 						require.Equal(t, "test", qp)
@@ -2646,14 +2652,14 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "Router Pass Error",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Route("/v1/user", nil)
 			},
 			expect: errors.New("route /v1/user: nil handler"),
 		},
 		{
 			name: "As int invalid type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Post("/v1/user", func(s string) {
 				},
 					smartapi.AsInt(smartapi.Header("Foo")),
@@ -2663,7 +2669,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "As int correct inner type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Post("/v1/user", func(s int) {
 				},
 					smartapi.AsInt(smartapi.JSONBodyDirect("")),
@@ -2673,7 +2679,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "As int incorrect inner type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Post("/v1/user", func(s int) {
 				},
 					smartapi.AsInt(smartapi.JSONBodyDirect(0)),
@@ -2683,7 +2689,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "As int not arguments",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Post("/v1/user", func(s int) {
 				},
 					smartapi.AsInt(smartapi.ResponseStatus(http.StatusAccepted)),
@@ -2693,7 +2699,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "As byte slice invalid type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Post("/v1/user", func(s string) {
 				},
 					smartapi.AsByteSlice(smartapi.Header("Foo")),
@@ -2703,7 +2709,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "As byte slice correct inner type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Post("/v1/user", func(s []byte) {
 				},
 					smartapi.AsByteSlice(smartapi.JSONBodyDirect("")),
@@ -2713,7 +2719,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "As byte slice incorrect inner type",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Post("/v1/user", func(s []byte) {
 				},
 					smartapi.AsByteSlice(smartapi.JSONBodyDirect(0)),
@@ -2723,7 +2729,7 @@ func TestHandlersErrors(t *testing.T) {
 		},
 		{
 			name: "As byte slice not an argument",
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Post("/v1/user", func(s []byte) {
 				},
 					smartapi.AsByteSlice(smartapi.ResponseStatus(http.StatusAccepted)),
@@ -2731,11 +2737,89 @@ func TestHandlersErrors(t *testing.T) {
 			},
 			expect: errors.New("endpoint /v1/user: (argument 0) AsByteSlice() requires an argument param"),
 		},
+		{
+			name: "As int error not string",
+			api: func(api smartapi.Router) {
+				type Example struct {
+					Field int `smartapi:"as_int=context"`
+				}
+				api.Post("/v1/user", func(s *Example) {
+				},
+					smartapi.RequestStruct(Example{}),
+				)
+			},
+			expect: errors.New("endpoint /v1/user: (argument 0) (struct field Field) (as int) argument must accept a string"),
+		},
+		{
+			name: "As byte slice error not string",
+			api: func(api smartapi.Router) {
+				type Example struct {
+					Field []byte `smartapi:"as_byte_slice=context"`
+				}
+				api.Post("/v1/user", func(s *Example) {
+				},
+					smartapi.RequestStruct(Example{}),
+				)
+			},
+			expect: errors.New("endpoint /v1/user: (argument 0) (struct field Field) (as byte slice) argument must accept a string"),
+		},
+		{
+			name: "As int type error",
+			api: func(api smartapi.Router) {
+				type Example struct {
+					Field string `smartapi:"as_int=header"`
+				}
+				api.Post("/v1/user", func(s *Example) {
+				},
+					smartapi.RequestStruct(Example{}),
+				)
+			},
+			expect: errors.New("endpoint /v1/user: (argument 0) (struct field Field) argument must be an int"),
+		},
+		{
+			name: "As byte slice type error",
+			api: func(api smartapi.Router) {
+				type Example struct {
+					Field string `smartapi:"as_byte_slice=header"`
+				}
+				api.Post("/v1/user", func(s *Example) {
+				},
+					smartapi.RequestStruct(Example{}),
+				)
+			},
+			expect: errors.New("endpoint /v1/user: (argument 0) (struct field Field) argument must be a byte slice"),
+		},
+		{
+			name: "As int invalid tag",
+			api: func(api smartapi.Router) {
+				type Example struct {
+					Field string `smartapi:"as_int=ddfdsf"`
+				}
+				api.Post("/v1/user", func(s *Example) {
+				},
+					smartapi.RequestStruct(Example{}),
+				)
+			},
+			expect: errors.New("endpoint /v1/user: (argument 0) (struct field Field) (as int) unsupported tag"),
+		},
+		{
+			name: "As byte slice invalid tag",
+			api: func(api smartapi.Router) {
+				type Example struct {
+					Field string `smartapi:"as_byte_slice=ddfdsf"`
+				}
+				api.Post("/v1/user", func(s *Example) {
+				},
+					smartapi.RequestStruct(Example{}),
+				)
+			},
+			expect: errors.New("endpoint /v1/user: (argument 0) (struct field Field) (as byte slice) unsupported tag"),
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			api := smartapi.NewServer(nil)
+			api := smartapi.NewRouter()
 			tt.api(api)
 			_, err := api.Handler()
 			require.Equal(t, tt.expect, err)
@@ -2747,7 +2831,7 @@ func TestMethods(t *testing.T) {
 	type test struct {
 		name         string
 		request      func() *http.Request
-		api          func(api *smartapi.Server)
+		api          func(api smartapi.Router)
 		responseCode int
 		responseBody []byte
 		logger       smartapi.Logger
@@ -2766,7 +2850,7 @@ func TestMethods(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Post("/test", func() error {
 					return nil
 				})
@@ -2783,7 +2867,7 @@ func TestMethods(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Get("/test", func() error {
 					return nil
 				})
@@ -2800,7 +2884,7 @@ func TestMethods(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Put("/test", func() error {
 					return nil
 				})
@@ -2817,7 +2901,7 @@ func TestMethods(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Patch("/test", func() error {
 					return nil
 				})
@@ -2834,7 +2918,7 @@ func TestMethods(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Delete("/test", func() error {
 					return nil
 				})
@@ -2851,7 +2935,7 @@ func TestMethods(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Head("/test", func() error {
 					return nil
 				})
@@ -2868,7 +2952,7 @@ func TestMethods(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Options("/test", func() error {
 					return nil
 				})
@@ -2885,7 +2969,7 @@ func TestMethods(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Connect("/test", func() error {
 					return nil
 				})
@@ -2902,7 +2986,7 @@ func TestMethods(t *testing.T) {
 				}
 				return request
 			},
-			api: func(api *smartapi.Server) {
+			api: func(api smartapi.Router) {
 				api.Trace("/test", func() error {
 					return nil
 				})
@@ -2914,7 +2998,7 @@ func TestMethods(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			request := tt.request()
-			api := smartapi.NewServer(tt.logger)
+			api := smartapi.NewRouterLogger(tt.logger)
 			tt.api(api)
 
 			r := httptest.NewRecorder()

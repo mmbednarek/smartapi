@@ -23,6 +23,8 @@ type Router interface {
 	Connect(pattern string, handler interface{}, args ...EndpointParam)
 	Trace(pattern string, handler interface{}, args ...EndpointParam)
 	Route(pattern string, handler RouteHandler, args ...EndpointParam)
+	Handler() (http.Handler, error)
+	MustHandler() http.Handler
 }
 
 type RouteHandler func(r Router)
@@ -32,6 +34,20 @@ type router struct {
 	errors    []error
 	logger    Logger
 	params    []EndpointParam
+}
+
+func NewRouter() *router {
+	return &router{
+		chiRouter: chi.NewRouter(),
+		logger:    DefaultLogger,
+	}
+}
+
+func NewRouterLogger(logger Logger) *router {
+	return &router{
+		chiRouter: chi.NewRouter(),
+		logger:    logger,
+	}
 }
 
 var errType = reflect.TypeOf((*error)(nil)).Elem()
@@ -291,4 +307,25 @@ func (r *router) Route(pattern string, handler RouteHandler, params ...EndpointP
 			r.errors = append(r.errors, fmt.Errorf("route %s: %w", pattern, err))
 		}
 	})
+}
+
+// Handler returns an http.Handler of the API
+func (r *router) Handler() (http.Handler, error) {
+	if len(r.errors) != 0 {
+		errMsg := r.errors[0].Error()
+		for _, e := range r.errors[1:] {
+			errMsg += ", " + e.Error()
+		}
+		return nil, errors.New(errMsg)
+	}
+	return r.chiRouter, nil
+}
+
+// MustHandler returns a handler but panics if handler cannot be obtained
+func (r *router) MustHandler() http.Handler {
+	h, err := r.Handler()
+	if err != nil {
+		panic(err)
+	}
+	return h
 }
