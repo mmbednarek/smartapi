@@ -20,11 +20,11 @@ This example returns a greeting with a name based on a query param `name`.
 package main
 
 import (
-	"fmt" 
+    "fmt" 
     "log"
     "net/http"
 
-	"github.com/mmbednarek/smartapi"
+    "github.com/mmbednarek/smartapi"
 )
 
 func MountAPI() http.Handler {
@@ -69,11 +69,11 @@ import (
 func MountAPI() http.Handler {
     r := smartapi.NewRouter()
 
-	r.Route("/encode", func(r smartapi.Router) {
+    r.Route("/encode", func(r smartapi.Router) {
         r.Post("/base64", base64.StdEncoding.EncodeToString)
         r.Post("/base32", base32.StdEncoding.EncodeToString)
     }, smartapi.ByteSliceBody())
-	r.Route("/decode", func(r smartapi.Router) {
+    r.Route("/decode", func(r smartapi.Router) {
         r.Post("/base64", base64.StdEncoding.DecodeString)
         r.Post("/base32", base32.StdEncoding.DecodeString)
     }, smartapi.StringBody())

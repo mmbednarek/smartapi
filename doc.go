@@ -8,7 +8,7 @@
 	This allows service layer methods to be used as handlers.
 	Designation of a dedicated API layer is still advisable in order to map errors to status codes, write cookies, headers, etc.
 
-	SmartAPI is based on [github.com/go-chi/chi](https://github.com/go-chi/chi). This allows Chi middlewares to be used.
+	SmartAPI is based on github.com/go-chi/chi. This allows Chi middlewares to be used.
 
 	Examples
 
