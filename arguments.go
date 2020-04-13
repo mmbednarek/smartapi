@@ -530,6 +530,7 @@ func (responseWriterArgument) options() endpointOptions {
 	return flagArgument | flagWritesResponse
 }
 
+// ResponseWriter passes an http.ResponseWriter into a function
 func ResponseWriter() EndpointParam {
 	return responseWriterArgument{}
 }
@@ -553,6 +554,7 @@ func (fullRequestArgument) getValue(_ http.ResponseWriter, r *http.Request) (ref
 	return reflect.ValueOf(r), nil
 }
 
+// Request passes an *http.Request into a function
 func Request() EndpointParam {
 	return fullRequestArgument{}
 }
@@ -668,7 +670,7 @@ func requestStruct(structType reflect.Type) (tagStructArgument, error) {
 	}, nil
 }
 
-// RequestStruct passes request's arguments into struct's fields by tags
+// RequestStructDirect passes request's arguments into struct's fields by tags
 func RequestStructDirect(s interface{}) EndpointParam {
 	reqStruct, err := requestStruct(reflect.TypeOf(s))
 	if err != nil {
@@ -715,6 +717,7 @@ func (a asIntArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect
 	return reflect.ValueOf(intValue), nil
 }
 
+// AsInt converts an argument and passes it as an int into the function
 func AsInt(param EndpointParam) EndpointParam {
 	if !param.options().has(flagArgument) {
 		return errorEndpointParam{err: errors.New("AsInt() requires an argument param")}
@@ -752,6 +755,7 @@ func (a asByteSliceArgument) getValue(w http.ResponseWriter, r *http.Request) (r
 	return reflect.ValueOf([]byte(v.String())), nil
 }
 
+// AsByteSlice converts an argument and passes it as a byte slice
 func AsByteSlice(param EndpointParam) EndpointParam {
 	if !param.options().has(flagArgument) {
 		return errorEndpointParam{err: errors.New("AsByteSlice() requires an argument param")}

@@ -1,9 +1,9 @@
-//Copyright (c) 2020 Mikołaj Bednarek. All rights reserved.
-//Use of this source code is governed by the MIT License that can be found in
-//the LICENSE file.
+// Copyright (c) 2020 Mikołaj Bednarek. All rights reserved.
+// Use of this source code is governed by the MIT License that can be found in
+// the LICENSE file.
 
 /*
-	SmartAPI allows to quickly implement solid REST APIs in Golang.
+	Package smartapi allows to quickly implement solid REST APIs in Golang.
 	The idea behind the project is to replace handler functions with ordinary looking functions.
 	This allows service layer methods to be used as handlers.
 	Designation of a dedicated API layer is still advisable in order to map errors to status codes, write cookies, headers, etc.

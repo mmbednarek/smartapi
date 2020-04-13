@@ -17,6 +17,7 @@ type API interface {
 	Init()
 }
 
+// Method represents an http method
 type Method int
 
 const (
@@ -31,6 +32,7 @@ const (
 	MethodTrace
 )
 
+// String converts a method into a string with name of the method in capital letters
 func (m Method) String() string {
 	return methodNames[m]
 }
