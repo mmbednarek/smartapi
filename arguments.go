@@ -3,6 +3,7 @@ package smartapi
 import (
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
@@ -158,6 +159,35 @@ func (a jsonBodyDirectArgument) getValue(w http.ResponseWriter, r *http.Request)
 // JSONBodyDirect reads request's body and unmarshals it into a json structure
 func JSONBodyDirect(v interface{}) EndpointParam {
 	return jsonBodyDirectArgument{typ: reflect.TypeOf(v)}
+}
+
+type xmlBodyArgument struct {
+	typ reflect.Type
+}
+
+func (a xmlBodyArgument) options() endpointOptions {
+	return flagArgument | flagReadsRequestBody
+}
+
+func (a xmlBodyArgument) checkArg(arg reflect.Type) error {
+	if reflect.PtrTo(a.typ) != arg {
+		return errors.New("invalid type")
+	}
+	return nil
+}
+
+func (a xmlBodyArgument) getValue(w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
+	value := reflect.New(a.typ)
+	obj := value.Interface()
+	if err := xml.NewDecoder(r.Body).Decode(obj); err != nil {
+		return reflect.Value{}, WrapError(http.StatusBadRequest, err, "cannot unmarshal request")
+	}
+	return value, nil
+}
+
+// XMLBody reads request's body and unmarshals it into a pointer to an xml structure
+func XMLBody(v interface{}) EndpointParam {
+	return xmlBodyArgument{typ: reflect.TypeOf(v)}
 }
 
 type stringBodyArgument struct{}

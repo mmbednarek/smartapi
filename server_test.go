@@ -138,6 +138,54 @@ func TestAttributes(t *testing.T) {
 			responseBody: []byte("{\"status\":400,\"reason\":\"cannot unmarshal request\"}\n"),
 		},
 		{
+			name: "XMLBody",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", bytes.NewReader([]byte(`<test><name>John</name><surname>Smith</surname></test>`)))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type foo struct {
+					Name    string `xml:"name"`
+					Surname string `xml:"surname"`
+				}
+				api.Post("/test", func(f *foo) error {
+					require.Equal(t, "John", f.Name)
+					require.Equal(t, "Smith", f.Surname)
+					return nil
+				},
+					smartapi.XMLBody(foo{}),
+				)
+			},
+			responseCode: http.StatusNoContent,
+			responseBody: nil,
+		},
+		{
+			name: "XMLBody Error",
+			request: func() *http.Request {
+				request, err := http.NewRequest("POST", "/test", bytes.NewReader([]byte(`<test><name>Joh`)))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+			api: func(api *smartapi.Server) {
+				type foo struct {
+					Name    string `xml:"name"`
+					Surname string `xml:"surname"`
+				}
+				api.Post("/test", func(f *foo) error {
+					return nil
+				},
+					smartapi.XMLBody(foo{}),
+				)
+			},
+			responseCode: http.StatusBadRequest,
+			responseBody: []byte("{\"status\":400,\"reason\":\"cannot unmarshal request\"}\n"),
+		},
+		{
 			name: "StringBody",
 			request: func() *http.Request {
 				request, err := http.NewRequest("POST", "/test", bytes.NewReader([]byte("body value")))
@@ -2366,6 +2414,20 @@ func TestHandlersErrors(t *testing.T) {
 				)
 			},
 			expect: errors.New("endpoint /test: (argument 0) expected a string type"),
+		},
+		{
+			name: "XML body wrong type",
+			api: func(api smartapi.Router) {
+				type s struct {
+					Field string
+				}
+				api.Get("/test", func(value s) error {
+					return nil
+				},
+					smartapi.XMLBody(s{}),
+				)
+			},
+			expect: errors.New("endpoint /test: (argument 0) invalid type"),
 		},
 		{
 			name: "JSON body wrong type",
