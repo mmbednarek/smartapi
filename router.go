@@ -242,6 +242,7 @@ func (r *router) With(middlewares ...func(http.Handler) http.Handler) Router {
 		chiRouter: r.chiRouter.With(middlewares...),
 		errors:    r.errors,
 		logger:    r.logger,
+		params:    r.params,
 	}
 }
 
