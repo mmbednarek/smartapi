@@ -23,6 +23,7 @@ type Router interface {
 	Connect(pattern string, handler interface{}, args ...EndpointParam)
 	Trace(pattern string, handler interface{}, args ...EndpointParam)
 	Route(pattern string, handler RouteHandler, args ...EndpointParam)
+	Handle(pattern string, handler http.Handler)
 	Handler() (http.Handler, error)
 	MustHandler() http.Handler
 }
@@ -308,6 +309,11 @@ func (r *router) Route(pattern string, handler RouteHandler, params ...EndpointP
 			r.errors = append(r.errors, fmt.Errorf("route %s: %w", pattern, err))
 		}
 	})
+}
+
+// Handle handles request with specified http handler
+func (r *router) Handle(pattern string, handler http.Handler) {
+	r.chiRouter.Handle(pattern, handler)
 }
 
 // Handler returns an http.Handler of the API
