@@ -29,19 +29,19 @@ import (
 
 func MountAPI() http.Handler {
     r := smartapi.NewRouter()
-	r.Get("/greeting", Greeting,
-		smartapi.QueryParam("name"),
-	)
+    r.Get("/greeting", Greeting,
+        smartapi.QueryParam("name"),
+    )
 
     return r.MustHandler()
 }
 
 func Greeting(name string) string {
-	return fmt.Sprintf("Hello %s!\n", name)
+    return fmt.Sprintf("Hello %s!\n", name)
 }
 
 func main() {
-	log.Fatal(http.ListenAndServe(":8080", MountAPI()))
+    log.Fatal(http.ListenAndServe(":8080", MountAPI()))
 }
 ```
 
@@ -82,7 +82,7 @@ func MountAPI() http.Handler {
 }
 
 func main() {
-	log.Fatal(http.ListenAndServe(":8080", MountAPI()))
+    log.Fatal(http.ListenAndServe(":8080", MountAPI()))
 }
 ```
 
@@ -113,49 +113,49 @@ import (
 )
 
 type Date struct {
-	Day   int `json:"day"`
-	Month int `json:"month"`
-	Year  int `json:"year"`
+    Day   int `json:"day"`
+    Month int `json:"month"`
+    Year  int `json:"year"`
 }
 
 type User struct {
-	Login       string `json:"login"`
-	Password    string `json:"password,omitempty"`
-	Email       string `json:"email"`
-	DateOfBirth Date   `json:"date_of_birth"`
+    Login       string `json:"login"`
+    Password    string `json:"password,omitempty"`
+    Email       string `json:"email"`
+    DateOfBirth Date   `json:"date_of_birth"`
 }
 
 type Service interface {
-	RegisterUser(user *User) error
-	Auth(login, password string) (string, error)
-	GetUserData(session string) (*User, error)
-	UpdateUser(session string, user *User) error
+    RegisterUser(user *User) error
+    Auth(login, password string) (string, error)
+    GetUserData(session string) (*User, error)
+    UpdateUser(session string, user *User) error
 }
 
 func newHandler(service Service) http.Handler {
-	r := smartapi.NewRouter()
+    r := smartapi.NewRouter()
 
-	r.Post("/user", service.RegisterUser,
-		smartapi.JSONBody(User{}),
-	)
-	r.Post("/user/auth", service.Auth,
-		smartapi.PostQueryParam("login"),
-		smartapi.PostQueryParam("password"),
-	)
-	r.Get("/user", service.GetUserData,
-		smartapi.Header("X-Session-ID"),
-	)
-	r.Patch("/user", service.UpdateUser,
-		smartapi.Header("X-Session-ID"),
-		smartapi.JSONBody(User{}),
-	)
+    r.Post("/user", service.RegisterUser,
+        smartapi.JSONBody(User{}),
+    )
+    r.Post("/user/auth", service.Auth,
+        smartapi.PostQueryParam("login"),
+        smartapi.PostQueryParam("password"),
+    )
+    r.Get("/user", service.GetUserData,
+        smartapi.Header("X-Session-ID"),
+    )
+    r.Patch("/user", service.UpdateUser,
+        smartapi.Header("X-Session-ID"),
+        smartapi.JSONBody(User{}),
+    )
 
-	return r.MustHandler()
+    return r.MustHandler()
 }
 
 func main() {
-	svr := service.NewService() // Your service implementation
-	log.Fatal(http.ListenAndServe(":8080", newHandler(svr)))
+    svr := service.NewService() // Your service implementation
+    log.Fatal(http.ListenAndServe(":8080", newHandler(svr)))
 }
 ```
 

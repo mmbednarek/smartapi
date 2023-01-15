@@ -7,4 +7,5 @@ require (
 	github.com/golang/mock v1.4.3
 	github.com/stretchr/testify v1.5.1
 	golang.org/x/net v0.0.0-20200320220750-118fecf932d8 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
